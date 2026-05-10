@@ -55,25 +55,17 @@ def _load_model_auto(model_cls, model_id, **kwargs):
         )
         try:
             return model_cls.from_pretrained(
-                model_id, device_map="auto", quantization_config=bnb_config,
-                attn_implementation="sdpa", **kwargs,
+                model_id, device_map="auto", quantization_config=bnb_config, **kwargs,
             )
         except Exception as e:
-            print(f"[rsllava] 4-bit+sdpa load failed ({e}), trying without sdpa")
-            try:
-                return model_cls.from_pretrained(
-                    model_id, device_map="auto", quantization_config=bnb_config, **kwargs,
-                )
-            except Exception as e2:
-                print(f"[rsllava] 4-bit load failed ({e2}), trying bf16")
+            print(f"[rsllava] 4-bit load failed ({e}), trying bf16")
 
     try:
         return model_cls.from_pretrained(
-            model_id, device_map="auto", torch_dtype=torch.bfloat16,
-            attn_implementation="sdpa", **kwargs,
+            model_id, device_map="auto", torch_dtype=torch.bfloat16, **kwargs,
         )
     except Exception as e:
-        print(f"[rsllava] bf16+sdpa load failed ({e}), falling back to fp32")
+        print(f"[rsllava] bf16 load failed ({e}), falling back to fp32")
         return model_cls.from_pretrained(model_id, device_map="auto", **kwargs)
 
 
