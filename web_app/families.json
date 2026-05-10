@@ -44,7 +44,10 @@
         "description": "InternVL2 serisi modeller — otomatik olarak timm ve einops kurulur",
         "endpoint_type": "generic",
         "strategy": "internvl",
-        "requirements": ["timm", "einops"],
+        "requirements": [
+            "timm",
+            "einops"
+        ],
         "builtin": true
     }
 }

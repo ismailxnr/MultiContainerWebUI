@@ -1,21 +1,19 @@
 import io
 import base64
 import gc
-import tempfile
+import json
 import os
-import subprocess
-import sys
+import re
 import torch
 from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel
 from PIL import Image
-from transformers import AutoModelForCausalLM, AutoTokenizer
 
 app = FastAPI(title="Qwen VLM Service")
 
 model_state = {
     "model": None,
-    "tokenizer": None,
+    "processor": None,
     "loaded_path": None,
 }
 
@@ -29,59 +27,57 @@ class GenerateRequest(BaseModel):
     prompt: str
 
 
-def auto_install(module_name: str):
-    pkg_map = {
-        "tiktoken": "tiktoken",
-        "peft": "peft",
-        "google.protobuf": "protobuf<4.0.0",
-        "google": "protobuf<4.0.0",
-        "sentencepiece": "sentencepiece",
-        "einops": "einops",
-        "timm": "timm",
-        "sklearn": "scikit-learn",
-        "cv2": "opencv-python-headless",
-    }
-    pkg = pkg_map.get(module_name, module_name)
-    print(f"[qwen] Auto-installing missing module '{module_name}' as '{pkg}' ...")
-    subprocess.check_call(
-        [sys.executable, "-m", "pip", "install", pkg, "-q"],
-        stdout=subprocess.DEVNULL, stderr=subprocess.STDOUT,
-    )
-    print(f"[qwen] Installed: {pkg}")
+def _load_model_auto(model_cls, model_id, **kwargs):
+    """Load model with 4-bit quantization if CUDA is available, otherwise fp16/fp32."""
+    from transformers import BitsAndBytesConfig
+
+    has_cuda = torch.cuda.is_available()
+
+    if has_cuda:
+        bnb_config = BitsAndBytesConfig(
+            load_in_4bit=True,
+            bnb_4bit_use_double_quant=True,
+            bnb_4bit_quant_type="nf4",
+            bnb_4bit_compute_dtype=torch.bfloat16,
+        )
+        try:
+            return model_cls.from_pretrained(
+                model_id, quantization_config=bnb_config,
+                device_map="auto", torch_dtype=torch.bfloat16, **kwargs,
+            )
+        except Exception as e:
+            print(f"[qwen] 4-bit load failed ({e}), trying fp16")
+
+    try:
+        return model_cls.from_pretrained(
+            model_id, device_map="auto", torch_dtype=torch.float16, **kwargs,
+        )
+    except Exception as e:
+        print(f"[qwen] fp16 load failed ({e}), falling back to fp32")
+        return model_cls.from_pretrained(model_id, device_map="auto", **kwargs)
 
 
 def _do_load(model_path: str):
-    tokenizer = AutoTokenizer.from_pretrained(model_path, trust_remote_code=True)
-    try:
-        from transformers import BitsAndBytesConfig
-        quant_config = BitsAndBytesConfig(load_in_4bit=True, bnb_4bit_compute_dtype=torch.float16)
-        model = AutoModelForCausalLM.from_pretrained(
-            model_path,
-            device_map="cuda",
-            trust_remote_code=True,
-            quantization_config=quant_config,
-        ).eval()
-    except Exception as e:
-        print(f"[qwen] 4-bit load failed, falling back to FP16: {e}")
-        model = AutoModelForCausalLM.from_pretrained(
-            model_path,
-            device_map="cuda",
-            trust_remote_code=True,
-            torch_dtype=torch.float16,
-        ).eval()
-    return tokenizer, model
+    from transformers import AutoModelForImageTextToText, AutoProcessor
+    from peft import PeftModel, PeftConfig
 
+    is_lora = os.path.exists(os.path.join(model_path, "adapter_config.json"))
 
-def load_with_auto_install(model_path: str, retries: int = 5):
-    for attempt in range(retries):
-        try:
-            return _do_load(model_path)
-        except ModuleNotFoundError as e:
-            missing = e.name or str(e).split("'")[1] if "'" in str(e) else str(e)
-            if attempt < retries - 1:
-                auto_install(missing)
-            else:
-                raise
+    if is_lora:
+        peft_cfg = PeftConfig.from_pretrained(model_path)
+        base_model_id = peft_cfg.base_model_name_or_path
+        print(f"[qwen] LoRA checkpoint detected. Base model: {base_model_id}")
+
+        processor = AutoProcessor.from_pretrained(base_model_id, trust_remote_code=True)
+        model = _load_model_auto(AutoModelForImageTextToText, base_model_id, trust_remote_code=True)
+        model = PeftModel.from_pretrained(model, model_path)
+    else:
+        print(f"[qwen] Loading full model from {model_path}")
+        processor = AutoProcessor.from_pretrained(model_path, trust_remote_code=True)
+        model = _load_model_auto(AutoModelForImageTextToText, model_path, trust_remote_code=True)
+
+    model.eval()
+    return processor, model
 
 
 @app.post("/load")
@@ -91,17 +87,17 @@ def load_model(req: LoadRequest):
 
     if model_state["model"] is not None:
         del model_state["model"]
-        del model_state["tokenizer"]
+        del model_state["processor"]
         model_state["model"] = None
-        model_state["tokenizer"] = None
+        model_state["processor"] = None
         gc.collect()
         torch.cuda.empty_cache()
 
     try:
         print(f"[qwen] Loading model from {req.model_path}")
-        tokenizer, model = load_with_auto_install(req.model_path)
+        processor, model = _do_load(req.model_path)
         model_state["model"] = model
-        model_state["tokenizer"] = tokenizer
+        model_state["processor"] = processor
         model_state["loaded_path"] = req.model_path
         return {"status": "success"}
     except Exception as e:
@@ -118,23 +114,49 @@ def generate(req: GenerateRequest):
         image_data = base64.b64decode(req.image_base64)
         pil_image = Image.open(io.BytesIO(image_data)).convert("RGB")
 
-        with tempfile.NamedTemporaryFile(suffix=".jpg", delete=False) as tmp:
-            tmp_path = tmp.name
-            pil_image.save(tmp_path)
+        model = model_state["model"]
+        processor = model_state["processor"]
 
-        try:
-            query = model_state["tokenizer"].from_list_format([
-                {"image": tmp_path},
-                {"text": req.prompt},
-            ])
-            with torch.inference_mode():
-                response, _ = model_state["model"].chat(
-                    model_state["tokenizer"], query=query, history=None
-                )
-            return {"caption": response.strip()}
-        finally:
-            if os.path.exists(tmp_path):
-                os.remove(tmp_path)
+        # Qwen2.5-VL / Qwen3.5 vision prompt format (matches training/eval scripts)
+        formatted_prompt = (
+            f"<|im_start|>user\n<|vision_start|><|image_pad|><|vision_end|>"
+            f"{req.prompt}<|im_end|>\n"
+            f"<|im_start|>assistant\n"
+        )
+
+        inputs = processor(
+            text=[formatted_prompt],
+            images=[pil_image],
+            return_tensors="pt",
+        ).to(model.device)
+
+        with torch.inference_mode():
+            output_ids = model.generate(
+                **inputs,
+                max_new_tokens=512,
+                do_sample=False,
+            )
+
+        # Decode only the newly generated tokens
+        n_input = inputs["input_ids"].shape[1]
+        caption = processor.batch_decode(
+            output_ids[:, n_input:], skip_special_tokens=True
+        )[0].strip()
+
+        # Handle Qwen3 thinking mode: prefer content after </think>, fall back to inner content
+        if "</think>" in caption:
+            after = caption.split("</think>", 1)[1].strip()
+            if after:
+                caption = after
+            else:
+                # Model only produced a think block — use its inner content as the answer
+                inner = re.search(r"<think>(.*)</think>", caption, re.DOTALL)
+                caption = inner.group(1).strip() if inner else caption
+        elif "<think>" in caption:
+            # Truncated think block — strip the tag and use whatever text remains
+            caption = re.sub(r"<think>", "", caption).strip()
+
+        return {"caption": caption}
     except Exception as e:
         print(f"[qwen] Error during generation: {e}")
         raise HTTPException(status_code=500, detail=str(e))
@@ -144,9 +166,9 @@ def generate(req: GenerateRequest):
 def unload():
     if model_state["model"] is not None:
         del model_state["model"]
-        del model_state["tokenizer"]
+        del model_state["processor"]
         model_state["model"] = None
-        model_state["tokenizer"] = None
+        model_state["processor"] = None
         model_state["loaded_path"] = None
         gc.collect()
         torch.cuda.empty_cache()

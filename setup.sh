@@ -22,7 +22,7 @@ create_venv() {
 
 create_venv "webapp"  "$PROJECT_DIR/docker/webapp/requirements.txt"
 create_venv "qwen"    "$PROJECT_DIR/docker/qwen/requirements.txt"
-create_venv "rsllava" "$PROJECT_DIR/docker/rsllava/requirements.txt" "einops sentencepiece tiktoken shortuuid peft<=0.6.2"
+create_venv "rsllava" "$PROJECT_DIR/docker/rsllava/requirements.txt"
 create_venv "generic" "$PROJECT_DIR/docker/generic/requirements.txt"
 
 echo ""

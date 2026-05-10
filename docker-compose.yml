@@ -7,7 +7,7 @@ services:
       - "8000:8000"
     volumes:
       - ./web_app:/workspace/web_app:z
-      - /home/ismail/project_vlm:/home/ismail/project_vlm:z
+      - /home/atp-user-14/sayzek_vlm:/home/atp-user-14/sayzek_vlm:z
     environment:
       - QWEN_ENDPOINT=http://qwen_vlm:8001
       - RSLLAVA_ENDPOINT=http://rsllava_vlm:8002
@@ -25,8 +25,8 @@ services:
       - "8001:8001"
     volumes:
       - ./docker/qwen:/app
-      - /home/ismail/project_vlm:/home/ismail/project_vlm
-      - /home/ismail/.cache/huggingface:/root/.cache/huggingface
+      - /home/atp-user-14/sayzek_vlm:/home/atp-user-14/sayzek_vlm
+      - /home/atp-user-14/.cache/huggingface:/root/.cache/huggingface
       - /tmp/nvidia-libs:/usr/local/nvidia/lib64:ro
     devices:
       - "nvidia.com/gpu=all"
@@ -39,8 +39,8 @@ services:
       - "8002:8002"
     volumes:
       - ./docker/rsllava:/app
-      - /home/ismail/project_vlm:/home/ismail/project_vlm
-      - /home/ismail/.cache/huggingface:/root/.cache/huggingface
+      - /home/atp-user-14/sayzek_vlm:/home/atp-user-14/sayzek_vlm
+      - /home/atp-user-14/.cache/huggingface:/root/.cache/huggingface
       - /tmp/nvidia-libs:/usr/local/nvidia/lib64:ro
     devices:
       - "nvidia.com/gpu=all"
@@ -53,8 +53,8 @@ services:
       - "8003:8003"
     volumes:
       - ./docker/generic:/app
-      - /home/ismail/project_vlm:/home/ismail/project_vlm
-      - /home/ismail/.cache/huggingface:/root/.cache/huggingface
+      - /home/atp-user-14/sayzek_vlm:/home/atp-user-14/sayzek_vlm
+      - /home/atp-user-14/.cache/huggingface:/root/.cache/huggingface
       - /tmp/nvidia-libs:/usr/local/nvidia/lib64:ro
     devices:
       - "nvidia.com/gpu=all"

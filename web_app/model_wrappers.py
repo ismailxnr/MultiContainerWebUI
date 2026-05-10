@@ -23,7 +23,9 @@ class BaseVLM(ABC):
 class RemoteVLMWrapper(BaseVLM):
     def __init__(self, endpoint: str):
         self.endpoint = endpoint
-        self.client = httpx.Client(timeout=300.0)
+        self.client = httpx.Client(
+            timeout=httpx.Timeout(connect=30.0, read=3600.0, write=60.0, pool=30.0)
+        )
 
     def load(self, model_path: str, family: str = None, requirements: list = None):
         payload = {"model_path": model_path}

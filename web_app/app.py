@@ -2,6 +2,7 @@ import os
 import io
 import json
 import time
+import asyncio
 from fastapi import FastAPI, File, UploadFile, Form
 from fastapi.responses import JSONResponse, StreamingResponse
 from fastapi.staticfiles import StaticFiles
@@ -234,7 +235,13 @@ async def list_models():
         group = info["group"]
         if group not in grouped:
             grouped[group] = []
-        grouped[group].append({"key": key, "name": info["name"], "step": info["step"]})
+        grouped[group].append({
+            "key": key,
+            "name": info["name"],
+            "step": info["step"],
+            "path": info.get("path", ""),
+            "family": info.get("family", ""),
+        })
     return JSONResponse(grouped)
 
 
@@ -248,6 +255,30 @@ async def add_custom_model(
         key = f"custom/{name.replace(' ', '_').lower()}_{int(time.time())}"
         save_custom_model(key, name, path, family)
         return JSONResponse({"status": "success", "key": key})
+    except Exception as e:
+        return JSONResponse({"status": "error", "message": str(e)}, status_code=500)
+
+
+@app.put("/api/models/update")
+async def update_custom_model(
+    key: str = Form(...),
+    name: str = Form(...),
+    path: str = Form(...),
+    family: str = Form(...),
+):
+    try:
+        custom_models = load_custom_models()
+        if key not in custom_models:
+            return JSONResponse(
+                {"status": "error", "message": "Model bulunamadı."},
+                status_code=404,
+            )
+        custom_models[key]["name"] = name
+        custom_models[key]["path"] = path
+        custom_models[key]["family"] = family
+        with open(CUSTOM_MODELS_FILE, "w", encoding="utf-8") as f:
+            json.dump(custom_models, f, indent=4)
+        return JSONResponse({"status": "success"})
     except Exception as e:
         return JSONResponse({"status": "error", "message": str(e)}, status_code=500)
 
@@ -284,6 +315,7 @@ async def compare(image: UploadFile = File(...), models: str = Form(...), prompt
     AVAILABLE_MODELS = scan_available_models()
 
     async def event_stream():
+        loop = asyncio.get_running_loop()
         for i, key in enumerate(model_keys):
             info = AVAILABLE_MODELS.get(key)
             if not info:
@@ -293,31 +325,41 @@ async def compare(image: UploadFile = File(...), models: str = Form(...), prompt
 
             try:
                 t0 = time.time()
-                load_model_by_key(key)
+                await loop.run_in_executor(None, load_model_by_key, key)
                 load_time = time.time() - t0
 
                 t1 = time.time()
                 wrapper = model_state["wrapper"]
-                caption = wrapper.generate(pil_image.copy(), prompt)
+                caption = await loop.run_in_executor(None, wrapper.generate, pil_image.copy(), prompt)
                 infer_time = time.time() - t1
 
-                wrapper.unload()
-                model_state["wrapper"] = None
-                model_state["loaded_key"] = None
+                def _unload():
+                    wrapper.unload()
+                    model_state["wrapper"] = None
+                    model_state["loaded_key"] = None
+
+                await loop.run_in_executor(None, _unload)
 
                 yield f"data: {json.dumps({'type': 'result', 'model_key': key, 'model_name': info['name'], 'caption': caption, 'load_time': round(load_time, 1), 'infer_time': round(infer_time, 1), 'index': i, 'total': len(model_keys)})}\n\n"
 
             except Exception as e:
-                if model_state["wrapper"] is not None:
-                    model_state["wrapper"].unload()
-                    model_state["wrapper"] = None
-                    model_state["loaded_key"] = None
+                def _cleanup():
+                    if model_state["wrapper"] is not None:
+                        model_state["wrapper"].unload()
+                        model_state["wrapper"] = None
+                        model_state["loaded_key"] = None
+
+                await loop.run_in_executor(None, _cleanup)
 
                 yield f"data: {json.dumps({'type': 'error', 'model_key': key, 'model_name': info['name'], 'error': str(e), 'index': i, 'total': len(model_keys)})}\n\n"
 
         yield f"data: {json.dumps({'type': 'done'})}\n\n"
 
-    return StreamingResponse(event_stream(), media_type="text/event-stream")
+    return StreamingResponse(
+        event_stream(),
+        media_type="text/event-stream",
+        headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"},
+    )
 
 
 @app.post("/generate")

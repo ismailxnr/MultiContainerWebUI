@@ -1,42 +1,28 @@
 {
-    "custom/qwen_vl_chat": {
-        "name": "Qwen VL Chat",
-        "path": "Qwen/Qwen-VL-Chat",
+    "custom/qwen_1778433125": {
+        "name": "qwen",
+        "path": "/home/atp-user-14/sayzek_vlm/Project_Q/checkpoints/qwen35_9b_vlm_rsicd/checkpoint-2724/",
         "family": "qwenvl",
         "group": "Custom Models",
         "step": 999999
     },
-    "custom/rsllava": {
-        "name": "rsllava",
-        "path": "/home/ismail/project_vlm/output/rsllava-tr-lora-second-train_backup/checkpoint-8000",
+    "custom/llava_1778433169": {
+        "name": "llava",
+        "path": "/home/atp-user-14/sayzek_vlm/Project/output/llava16-tr-lora-v2/checkpoint-7500/",
         "family": "rsllava",
         "group": "Custom Models",
         "step": 999999
     },
-    "custom/ds": {
-        "name": "ds",
-        "path": "/home/ismail/project_vlm/output/rsllava-tr-lora-second-train_backup/checkpoint-8000",
-        "family": "qwenvl",
-        "group": "Custom Models",
-        "step": 999999
-    },
-    "custom/dneeme_1778401025": {
-        "name": "dneeme",
-        "path": "/home/ismail/project_vlm/output/rsllava-tr-lora-second-train_backup/checkpoint-8000",
-        "family": "qwenvl",
-        "group": "Custom Models",
-        "step": 999999
-    },
-    "custom/denemmee_1778401080": {
-        "name": "denemmee",
-        "path": "/home/ismail/project_vlm/output/rsllava-tr-lora-second-train_backup/checkpoint-8000",
+    "custom/llava-cp-4000_1778437346": {
+        "name": "llava-cp-4000",
+        "path": "/home/atp-user-14/sayzek_vlm/Project/output/llava16-tr-lora-v2/checkpoint-4000/",
         "family": "rsllava",
         "group": "Custom Models",
-        "step": 999999
+        "step": 4000
     },
-    "custom/aaaaaa_1778437266": {
-        "name": "aaaaaa",
-        "path": "/home/ismail/.cache/huggingface/hub/models--liuhaotian--llava-v1.5-7b/snapshots/4481d270cc22fd5c4d1bb5df129622006ccd9234",
+    "custom/rsllava-8000_1778439169": {
+        "name": "rsllava-8000",
+        "path": "/home/atp-user-14/sayzek_vlm/Project/output/llava16-tr-lora-v2/checkpoint-8000/",
         "family": "rsllava",
         "group": "Custom Models",
         "step": 999999

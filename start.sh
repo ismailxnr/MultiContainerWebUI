@@ -3,10 +3,13 @@ PROJECT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
 # ── Konfigurasyon ──────────────────────────────────────────────
 # RS-LLaVA kaynak kodu konumu (RS-LLaVA'yi kullanmak icin)
-export RS_LLAVA_PATH="${RS_LLAVA_PATH:-/home/ismail/project_vlm/RS-LLaVA}"
+export RS_LLAVA_PATH="${RS_LLAVA_PATH:-}"
 
 # HuggingFace cache konumu
 export HF_HOME="${HF_HOME:-$HOME/.cache/huggingface}"
+
+# MIG GPU device (H200, 1g.35gb slice)
+export CUDA_VISIBLE_DEVICES="${CUDA_VISIBLE_DEVICES:-MIG-93d4192b-45e8-58d8-98fe-a960130b7efd}"
 
 # Servis endpoint'leri (degistirme)
 export QWEN_ENDPOINT="http://localhost:8001"
