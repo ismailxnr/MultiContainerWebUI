@@ -9,6 +9,14 @@ from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel
 from PIL import Image
 
+try:
+    from transformers import AutoModelForImageTextToText, AutoProcessor
+    from peft import PeftModel, PeftConfig
+    _IMPORTS_OK = True
+except ImportError as e:
+    print(f"[qwen] WARNING: import failed at startup: {e}")
+    _IMPORTS_OK = False
+
 app = FastAPI(title="Qwen VLM Service")
 
 model_registry: dict = {}  # model_path -> {"model": ..., "processor": ...}
@@ -67,9 +75,6 @@ def _load_model_auto(model_cls, model_id, **kwargs):
 
 
 def _do_load(model_path: str):
-    from transformers import AutoModelForImageTextToText, AutoProcessor
-    from peft import PeftModel, PeftConfig
-
     is_lora = os.path.exists(os.path.join(model_path, "adapter_config.json"))
 
     if is_lora:

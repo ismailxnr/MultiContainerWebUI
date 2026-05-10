@@ -8,6 +8,20 @@ from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel
 from PIL import Image
 
+# Pre-import at module level to avoid threading race conditions with
+# transformers' lazy import system when concurrent /load requests arrive.
+try:
+    from transformers import (
+        LlavaNextProcessor, LlavaNextForConditionalGeneration,
+        LlavaForConditionalGeneration, AutoProcessor,
+    )
+    from peft import PeftModel, PeftConfig, get_peft_model, LoraConfig
+    from safetensors.torch import load_file as _safetensors_load_file
+    _IMPORTS_OK = True
+except ImportError as e:
+    print(f"[rsllava] WARNING: import failed at startup: {e}")
+    _IMPORTS_OK = False
+
 app = FastAPI(title="RS-LLaVA VLM Service")
 
 model_registry: dict = {}  # model_path -> {"model": ..., "processor": ..., "model_type": ...}
@@ -72,8 +86,7 @@ def _load_lora_remap_v15(model, adapter_path):
       liuhaotian: base_model.model.model.layers.X ... lora_A.weight
       HF-native:  base_model.model.model.language_model.layers.X ... lora_A.default.weight
     """
-    from peft import get_peft_model, LoraConfig, PeftConfig
-    from safetensors.torch import load_file
+    load_file = _safetensors_load_file
 
     peft_cfg = PeftConfig.from_pretrained(adapter_path)
     lora_config = LoraConfig(
@@ -112,12 +125,6 @@ def _load_lora_remap_v15(model, adapter_path):
 
 
 def _do_load(model_path: str):
-    from transformers import (
-        LlavaNextProcessor, LlavaNextForConditionalGeneration,
-        LlavaForConditionalGeneration, AutoProcessor,
-    )
-    from peft import PeftModel, PeftConfig
-
     is_lora = os.path.exists(os.path.join(model_path, "adapter_config.json"))
 
     if is_lora:
