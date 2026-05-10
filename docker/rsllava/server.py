@@ -17,8 +17,12 @@ try:
     from llava.model.builder import load_pretrained_model
     from llava.utils import disable_torch_init
     from llava.mm_utils import tokenizer_image_token, get_model_name_from_path, KeywordsStoppingCriteria
+    LLAVA_AVAILABLE = True
 except ImportError as e:
     print(f"Warning: Failed to import llava: {e}")
+    LLAVA_AVAILABLE = False
+    def disable_torch_init(): pass
+    def get_model_name_from_path(p): return os.path.basename(p)
 
 app = FastAPI(title="RS-LLaVA VLM Service")
 
@@ -168,6 +172,11 @@ def _load_lora_quantized(model_path: str, model_base: str, load_4bit: bool = Tru
 
 
 def _do_load(model_path: str):
+    if not LLAVA_AVAILABLE:
+        raise RuntimeError(
+            "LLaVA kutuphane bulunamadi. RS_LLAVA_PATH dogru ayarlanmis mi? "
+            f"Mevcut deger: {os.environ.get('RS_LLAVA_PATH', 'ayarlanmamis')}"
+        )
     disable_torch_init()
     model_name = get_model_name_from_path(model_path)
 
