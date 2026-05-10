@@ -1,17 +1,21 @@
 import io
 import base64
 import gc
+import json
 import os
 import re
 import torch
-from typing import Optional
 from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel
 from PIL import Image
 
 app = FastAPI(title="Qwen VLM Service")
 
-model_registry: dict = {}  # model_path -> {"model": ..., "processor": ...}
+model_state = {
+    "model": None,
+    "processor": None,
+    "loaded_path": None,
+}
 
 
 class LoadRequest(BaseModel):
@@ -19,16 +23,12 @@ class LoadRequest(BaseModel):
 
 
 class GenerateRequest(BaseModel):
-    model_path: str
     image_base64: str
     prompt: str
 
 
-class UnloadRequest(BaseModel):
-    model_path: Optional[str] = None
-
-
 def _load_model_auto(model_cls, model_id, **kwargs):
+    """Load model with 4-bit quantization if CUDA is available, otherwise fp16/fp32."""
     from transformers import BitsAndBytesConfig
 
     has_cuda = torch.cuda.is_available()
@@ -80,22 +80,25 @@ def _do_load(model_path: str):
     return processor, model
 
 
-def _free_entry(entry: dict):
-    if entry.get("model") is not None:
-        del entry["model"]
-    if entry.get("processor") is not None:
-        del entry["processor"]
-
-
 @app.post("/load")
 def load_model(req: LoadRequest):
-    if req.model_path in model_registry:
+    if model_state["loaded_path"] == req.model_path:
         return {"status": "already loaded"}
+
+    if model_state["model"] is not None:
+        del model_state["model"]
+        del model_state["processor"]
+        model_state["model"] = None
+        model_state["processor"] = None
+        gc.collect()
+        torch.cuda.empty_cache()
 
     try:
         print(f"[qwen] Loading model from {req.model_path}")
         processor, model = _do_load(req.model_path)
-        model_registry[req.model_path] = {"model": model, "processor": processor}
+        model_state["model"] = model
+        model_state["processor"] = processor
+        model_state["loaded_path"] = req.model_path
         return {"status": "success"}
     except Exception as e:
         print(f"[qwen] Error loading model: {e}")
@@ -104,17 +107,17 @@ def load_model(req: LoadRequest):
 
 @app.post("/generate")
 def generate(req: GenerateRequest):
-    entry = model_registry.get(req.model_path)
-    if entry is None:
-        raise HTTPException(status_code=400, detail=f"Model not loaded: {req.model_path}")
+    if model_state["model"] is None:
+        raise HTTPException(status_code=400, detail="Model not loaded")
 
     try:
         image_data = base64.b64decode(req.image_base64)
         pil_image = Image.open(io.BytesIO(image_data)).convert("RGB")
 
-        model = entry["model"]
-        processor = entry["processor"]
+        model = model_state["model"]
+        processor = model_state["processor"]
 
+        # Qwen2.5-VL / Qwen3.5 vision prompt format (matches training/eval scripts)
         formatted_prompt = (
             f"<|im_start|>user\n<|vision_start|><|image_pad|><|vision_end|>"
             f"{req.prompt}<|im_end|>\n"
@@ -134,19 +137,23 @@ def generate(req: GenerateRequest):
                 do_sample=False,
             )
 
+        # Decode only the newly generated tokens
         n_input = inputs["input_ids"].shape[1]
         caption = processor.batch_decode(
             output_ids[:, n_input:], skip_special_tokens=True
         )[0].strip()
 
+        # Handle Qwen3 thinking mode: prefer content after </think>, fall back to inner content
         if "</think>" in caption:
             after = caption.split("</think>", 1)[1].strip()
             if after:
                 caption = after
             else:
+                # Model only produced a think block — use its inner content as the answer
                 inner = re.search(r"<think>(.*)</think>", caption, re.DOTALL)
                 caption = inner.group(1).strip() if inner else caption
         elif "<think>" in caption:
+            # Truncated think block — strip the tag and use whatever text remains
             caption = re.sub(r"<think>", "", caption).strip()
 
         return {"caption": caption}
@@ -156,21 +163,13 @@ def generate(req: GenerateRequest):
 
 
 @app.post("/unload")
-def unload(req: UnloadRequest = None):
-    if req is None:
-        req = UnloadRequest()
-
-    if req.model_path:
-        if req.model_path in model_registry:
-            entry = model_registry.pop(req.model_path)
-            _free_entry(entry)
-            gc.collect()
-            torch.cuda.empty_cache()
-    else:
-        for entry in list(model_registry.values()):
-            _free_entry(entry)
-        model_registry.clear()
+def unload():
+    if model_state["model"] is not None:
+        del model_state["model"]
+        del model_state["processor"]
+        model_state["model"] = None
+        model_state["processor"] = None
+        model_state["loaded_path"] = None
         gc.collect()
         torch.cuda.empty_cache()
-
     return {"status": "unloaded"}

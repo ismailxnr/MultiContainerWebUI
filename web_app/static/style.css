@@ -1,23 +1,23 @@
 :root {
-    --bg:        #f8fafc;
-    --surface:   #ffffff;
-    --surface2:  #f1f5f9;
-    --border:    #e2e8f0;
-    --border2:   #cbd5e1;
-    --text:      #0f172a;
-    --text-sec:  #475569;
-    --text-dim:  #94a3b8;
+    --bg:        #0a0f1e;
+    --surface:   #111827;
+    --surface2:  #1a2332;
+    --border:    #1e2d40;
+    --border2:   #2d3f55;
+    --text:      #f0f4f8;
+    --text-sec:  #8b9ab0;
+    --text-dim:  #566474;
     --blue:      #3b82f6;
-    --blue-dim:  #eff6ff;
-    --blue-glow: rgba(59,130,246,0.10);
-    --green:     #059669;
-    --green-dim: #ecfdf5;
-    --red:       #dc2626;
-    --red-dim:   #fef2f2;
-    --yellow:    #d97706;
+    --blue-dim:  #1d3461;
+    --blue-glow: rgba(59,130,246,0.15);
+    --green:     #10b981;
+    --green-dim: #064e3b;
+    --red:       #ef4444;
+    --red-dim:   #450a0a;
+    --yellow:    #f59e0b;
     --radius:    10px;
     --radius-lg: 14px;
-    --shadow:    0 4px 24px rgba(0,0,0,0.08);
+    --shadow:    0 4px 24px rgba(0,0,0,0.4);
     --sidebar-w: 320px;
 }
 
@@ -162,7 +162,7 @@ body {
     top: 6px; right: 6px;
     width: 26px; height: 26px;
     border-radius: 50%;
-    background: rgba(255,255,255,0.88);
+    background: rgba(0,0,0,0.7);
     border: 1px solid var(--border2);
     color: var(--text-sec);
     cursor: pointer;
@@ -212,7 +212,7 @@ textarea:focus, .form-input:focus {
 }
 select.form-input {
     appearance: none;
-    background-image: url("data:image/svg+xml;charset=US-ASCII,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12'%3E%3Cpath fill='%2394a3b8' d='M6 8L1 3h10z'/%3E%3C/svg%3E");
+    background-image: url("data:image/svg+xml;charset=US-ASCII,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12'%3E%3Cpath fill='%23566474' d='M6 8L1 3h10z'/%3E%3C/svg%3E");
     background-repeat: no-repeat;
     background-position: right 0.7rem center;
     padding-right: 2rem;
@@ -586,7 +586,7 @@ select.form-input option { background: var(--surface); }
 
 .result-card.error { border-color: rgba(239,68,68,0.4); }
 .result-card.error .result-card-header { background: var(--red-dim); }
-.result-card.error .result-caption { color: #b91c1c; font-size: 0.85rem; }
+.result-card.error .result-caption { color: #fca5a5; font-size: 0.85rem; }
 
 /* ─── Spinner ─── */
 .spinner {
@@ -614,7 +614,7 @@ select.form-input option { background: var(--surface); }
 .modal-overlay {
     position: fixed;
     inset: 0;
-    background: rgba(15,23,42,0.45);
+    background: rgba(0,0,0,0.65);
     display: flex;
     align-items: center;
     justify-content: center;

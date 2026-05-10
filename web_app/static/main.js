@@ -15,12 +15,10 @@ document.addEventListener('DOMContentLoaded', () => {
     const progressFill    = document.getElementById('progress-fill');
     const resultCards     = document.getElementById('result-cards');
 
-    let currentFile    = null;
+    let currentFile   = null;
     let selectedModels = new Set();
-    let isComparing    = false;
-    let familiesCache  = {};
-    let completedCount = 0;
-    let totalCount     = 0;
+    let isComparing   = false;
+    let familiesCache = {};
 
     // ─── Families ───
     async function loadFamilies() {
@@ -305,8 +303,6 @@ document.addEventListener('DOMContentLoaded', () => {
         progressWrap.classList.remove('hidden');
         resultCards.innerHTML = '';
         progressFill.style.width = '0%';
-        completedCount = 0;
-        totalCount = selectedModels.size;
 
         const fd = new FormData();
         fd.append('image', currentFile);
@@ -349,11 +345,8 @@ document.addEventListener('DOMContentLoaded', () => {
 
     function handleSSE(data) {
         if (data.type === 'loading') {
-            // All loading events arrive upfront — create all cards at once
-            if (data.index === 0) {
-                progressText.textContent = 'Tüm modeller paralel olarak yükleniyor...';
-                progressCount.textContent = `0 / ${data.total}`;
-            }
+            progressText.textContent = `Yükleniyor: ${data.model_name}`;
+            progressCount.textContent = `${data.index + 1} / ${data.total}`;
 
             const card = document.createElement('div');
             card.className = 'result-card loading';
@@ -367,16 +360,16 @@ document.addEventListener('DOMContentLoaded', () => {
                 </div>
                 <div class="result-body">
                     <div class="pulse-dot"></div>
-                    Yükleniyor ve çıktı üretiliyor...
+                    Model yükleniyor ve çıktı üretiliyor...
                 </div>`;
             resultCards.appendChild(card);
+            card.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
 
         } else if (data.type === 'result') {
-            completedCount++;
-            const pct = (completedCount / data.total * 100).toFixed(0);
+            const pct = ((data.index + 1) / data.total * 100).toFixed(0);
             progressFill.style.width = pct + '%';
             progressText.textContent = `Tamamlandı: ${data.model_name}`;
-            progressCount.textContent = `${completedCount} / ${data.total}`;
+            progressCount.textContent = `${data.index + 1} / ${data.total}`;
 
             const card = document.getElementById(`card-${data.index}`);
             if (card) {
@@ -399,11 +392,6 @@ document.addEventListener('DOMContentLoaded', () => {
             }
 
         } else if (data.type === 'error') {
-            completedCount++;
-            const pct = (completedCount / data.total * 100).toFixed(0);
-            progressFill.style.width = pct + '%';
-            progressCount.textContent = `${completedCount} / ${data.total}`;
-
             const card = document.getElementById(`card-${data.index}`);
             if (card) {
                 card.className = 'result-card error';

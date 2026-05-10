@@ -23,13 +23,11 @@ class BaseVLM(ABC):
 class RemoteVLMWrapper(BaseVLM):
     def __init__(self, endpoint: str):
         self.endpoint = endpoint
-        self.model_path = None
         self.client = httpx.Client(
             timeout=httpx.Timeout(connect=30.0, read=3600.0, write=60.0, pool=30.0)
         )
 
     def load(self, model_path: str, family: str = None, requirements: list = None):
-        self.model_path = model_path
         payload = {"model_path": model_path}
         if family:
             payload["family"] = family
@@ -45,7 +43,6 @@ class RemoteVLMWrapper(BaseVLM):
         img_str = base64.b64encode(buffered.getvalue()).decode("utf-8")
 
         response = self.client.post(f"{self.endpoint}/generate", json={
-            "model_path": self.model_path,
             "image_base64": img_str,
             "prompt": prompt,
         })
@@ -55,10 +52,7 @@ class RemoteVLMWrapper(BaseVLM):
 
     def unload(self):
         try:
-            payload = {}
-            if self.model_path:
-                payload["model_path"] = self.model_path
-            response = self.client.post(f"{self.endpoint}/unload", json=payload)
+            response = self.client.post(f"{self.endpoint}/unload")
             if response.status_code != 200:
                 print(f"Warning: Failed to unload remotely: {response.text}")
         except Exception as e:
@@ -69,6 +63,7 @@ def get_wrapper_for_family(family: str, families: dict = None) -> BaseVLM:
     if families and family in families:
         endpoint_type = families[family].get("endpoint_type", "generic")
     else:
+        # Legacy fallback
         if family in ("rsllava", "llava"):
             endpoint_type = "rsllava"
         elif family in ("qwenvl", "qwen"):
