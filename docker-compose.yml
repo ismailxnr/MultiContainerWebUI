@@ -1,0 +1,79 @@
+version: '3.8'
+
+services:
+  webapp:
+    build:
+      context: docker/webapp
+      dockerfile: Dockerfile
+    ports:
+      - "8000:8000"
+    volumes:
+      - ./web_app:/workspace/web_app:z
+      - /home/ismail/project_vlm:/home/ismail/project_vlm:z
+    environment:
+      - QWEN_ENDPOINT=http://qwen_vlm:8001
+      - RSLLAVA_ENDPOINT=http://rsllava_vlm:8002
+      - GENERIC_ENDPOINT=http://generic_vlm:8003
+    depends_on:
+      - qwen_vlm
+      - rsllava_vlm
+      - generic_vlm
+    security_opt:
+      - label=disable
+
+  qwen_vlm:
+    build:
+      context: docker/qwen
+      dockerfile: Dockerfile
+    ports:
+      - "8001:8001"
+    volumes:
+      - ./docker/qwen:/app
+      - /home/ismail/project_vlm:/home/ismail/project_vlm
+      - /home/ismail/.cache/huggingface:/root/.cache/huggingface
+      - /tmp/nvidia-libs:/usr/local/nvidia/lib64:ro
+    devices:
+      - /dev/nvidia0:/dev/nvidia0
+      - /dev/nvidiactl:/dev/nvidiactl
+      - /dev/nvidia-uvm:/dev/nvidia-uvm
+      - /dev/nvidia-uvm-tools:/dev/nvidia-uvm-tools
+    security_opt:
+      - label=disable
+
+  rsllava_vlm:
+    build:
+      context: docker/rsllava
+      dockerfile: Dockerfile
+    ports:
+      - "8002:8002"
+    volumes:
+      - ./docker/rsllava:/app
+      - /home/ismail/project_vlm:/home/ismail/project_vlm
+      - /home/ismail/.cache/huggingface:/root/.cache/huggingface
+      - /tmp/nvidia-libs:/usr/local/nvidia/lib64:ro
+    devices:
+      - /dev/nvidia0:/dev/nvidia0
+      - /dev/nvidiactl:/dev/nvidiactl
+      - /dev/nvidia-uvm:/dev/nvidia-uvm
+      - /dev/nvidia-uvm-tools:/dev/nvidia-uvm-tools
+    security_opt:
+      - label=disable
+
+  generic_vlm:
+    build:
+      context: docker/generic
+      dockerfile: Dockerfile
+    ports:
+      - "8003:8003"
+    volumes:
+      - ./docker/generic:/app
+      - /home/ismail/project_vlm:/home/ismail/project_vlm
+      - /home/ismail/.cache/huggingface:/root/.cache/huggingface
+      - /tmp/nvidia-libs:/usr/local/nvidia/lib64:ro
+    devices:
+      - /dev/nvidia0:/dev/nvidia0
+      - /dev/nvidiactl:/dev/nvidiactl
+      - /dev/nvidia-uvm:/dev/nvidia-uvm
+      - /dev/nvidia-uvm-tools:/dev/nvidia-uvm-tools
+    security_opt:
+      - label=disable

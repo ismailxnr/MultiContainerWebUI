@@ -1,0 +1,44 @@
+{
+    "custom/qwen_vl_chat": {
+        "name": "Qwen VL Chat",
+        "path": "Qwen/Qwen-VL-Chat",
+        "family": "qwenvl",
+        "group": "Custom Models",
+        "step": 999999
+    },
+    "custom/rsllava": {
+        "name": "rsllava",
+        "path": "/home/ismail/project_vlm/output/rsllava-tr-lora-second-train_backup/checkpoint-8000",
+        "family": "rsllava",
+        "group": "Custom Models",
+        "step": 999999
+    },
+    "custom/ds": {
+        "name": "ds",
+        "path": "/home/ismail/project_vlm/output/rsllava-tr-lora-second-train_backup/checkpoint-8000",
+        "family": "qwenvl",
+        "group": "Custom Models",
+        "step": 999999
+    },
+    "custom/dneeme_1778401025": {
+        "name": "dneeme",
+        "path": "/home/ismail/project_vlm/output/rsllava-tr-lora-second-train_backup/checkpoint-8000",
+        "family": "qwenvl",
+        "group": "Custom Models",
+        "step": 999999
+    },
+    "custom/denemmee_1778401080": {
+        "name": "denemmee",
+        "path": "/home/ismail/project_vlm/output/rsllava-tr-lora-second-train_backup/checkpoint-8000",
+        "family": "rsllava",
+        "group": "Custom Models",
+        "step": 999999
+    },
+    "custom/aaaaaa_1778437266": {
+        "name": "aaaaaa",
+        "path": "/home/ismail/.cache/huggingface/hub/models--liuhaotian--llava-v1.5-7b/snapshots/4481d270cc22fd5c4d1bb5df129622006ccd9234",
+        "family": "rsllava",
+        "group": "Custom Models",
+        "step": 999999
+    }
+}

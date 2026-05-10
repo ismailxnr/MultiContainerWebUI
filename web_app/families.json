@@ -1,0 +1,50 @@
+{
+    "qwenvl": {
+        "name": "Qwen-VL",
+        "description": "Alibaba Qwen Vision-Language modelleri",
+        "endpoint_type": "qwen",
+        "strategy": "qwen",
+        "requirements": [],
+        "builtin": true
+    },
+    "rsllava": {
+        "name": "LLaVA / RS-LLaVA",
+        "description": "LLaVA v1.5 ve RS-LLaVA fine-tune modelleri",
+        "endpoint_type": "rsllava",
+        "strategy": "rsllava",
+        "requirements": [],
+        "builtin": true
+    },
+    "pipeline": {
+        "name": "HF Pipeline (image-to-text)",
+        "description": "Standart HuggingFace image-to-text pipeline — BLIP, GIT, ViT-GPT2 vb.",
+        "endpoint_type": "generic",
+        "strategy": "pipeline",
+        "requirements": [],
+        "builtin": true
+    },
+    "causal_lm": {
+        "name": "AutoModel (CausalLM + AutoProcessor)",
+        "description": "AutoModelForCausalLM + AutoProcessor ile çalışan modern VLM'ler — LLaVA-Next HF, vb.",
+        "endpoint_type": "generic",
+        "strategy": "causal_lm",
+        "requirements": [],
+        "builtin": true
+    },
+    "blip2": {
+        "name": "BLIP-2",
+        "description": "Salesforce BLIP-2 serisi modeller",
+        "endpoint_type": "generic",
+        "strategy": "blip2",
+        "requirements": [],
+        "builtin": true
+    },
+    "internvl": {
+        "name": "InternVL / InternVL2",
+        "description": "InternVL2 serisi modeller — otomatik olarak timm ve einops kurulur",
+        "endpoint_type": "generic",
+        "strategy": "internvl",
+        "requirements": ["timm", "einops"],
+        "builtin": true
+    }
+}

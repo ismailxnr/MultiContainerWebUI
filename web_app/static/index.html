@@ -1,0 +1,160 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>RS-LLaVA Model Karşılaştırma</title>
+    <meta name="description" content="RS-LLaVA uzaktan algılama modelleri karşılaştırma arayüzü">
+    <link rel="stylesheet" href="style.css">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Merriweather:wght@700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+</head>
+<body>
+    <div class="container">
+        <header class="header">
+            <h1 class="classic-title">RS-LLaVA</h1>
+            <p class="subtitle">Uzaktan Algılama — Çoklu Model Karşılaştırma</p>
+        </header>
+
+        <main class="main-content">
+            <!-- Left Panel: Controls -->
+            <section class="classic-card control-panel">
+                <!-- Image Upload -->
+                <div class="upload-section" id="drop-zone">
+                    <input type="file" id="file-input" accept="image/*" hidden>
+                    <div class="upload-placeholder" id="upload-placeholder">
+                        <i class="fa-solid fa-cloud-arrow-up fa-2x"></i>
+                        <h3>Resim Yükle</h3>
+                        <p>PNG, JPG, JPEG formatları desteklenir</p>
+                    </div>
+                    <img id="image-preview" class="hidden" alt="Yüklenen Resim">
+                    <button id="remove-image" class="hidden btn-icon" title="Resmi Kaldır"><i class="fa-solid fa-xmark"></i></button>
+                </div>
+
+                <!-- Prompt -->
+                <div class="input-section">
+                    <label for="prompt-input">Sorgu (İsteğe Bağlı)</label>
+                    <textarea id="prompt-input" placeholder="Bu uzaktan algılama görüntüsünü Türkçe olarak açıklayın..." rows="2"></textarea>
+                </div>
+
+                <!-- Add Custom Model Form -->
+                <div class="add-model-section">
+                    <div class="add-model-header" id="toggle-add-model">
+                        <span><i class="fa-solid fa-plus-circle"></i> Model Ekle</span>
+                        <i class="fa-solid fa-chevron-down" id="add-model-icon"></i>
+                    </div>
+                    <div class="add-model-body hidden" id="add-model-body">
+                        <div class="input-section">
+                            <label for="custom-name">Gösterilecek İsim</label>
+                            <input type="text" id="custom-name" placeholder="Örn: Qwen-VL-Chat" class="form-input">
+                        </div>
+                        <div class="input-section" style="margin-top: 0.8rem">
+                            <label for="custom-path">Model Yolu / HuggingFace ID</label>
+                            <input type="text" id="custom-path" placeholder="Örn: Qwen/Qwen-VL-Chat veya /home/..." class="form-input">
+                        </div>
+                        <div class="input-section" style="margin-top: 0.8rem">
+                            <label for="custom-family">Model Ailesi</label>
+                            <select id="custom-family" class="form-input">
+                                <option value="">Yükleniyor...</option>
+                            </select>
+                            <span class="hint" id="family-desc-hint"></span>
+                        </div>
+                        <button id="add-model-btn" class="btn-secondary" style="margin-top: 1rem">
+                            <i class="fa-solid fa-download"></i> Kütüphaneye Ekle
+                        </button>
+                        <p id="add-model-status" class="hint"></p>
+                    </div>
+                </div>
+
+                <!-- Add Custom Family Form -->
+                <div class="add-model-section">
+                    <div class="add-model-header" id="toggle-add-family">
+                        <span><i class="fa-solid fa-puzzle-piece"></i> Yeni Model Ailesi Ekle</span>
+                        <i class="fa-solid fa-chevron-down" id="add-family-icon"></i>
+                    </div>
+                    <div class="add-model-body hidden" id="add-family-body">
+                        <p class="hint" style="margin-bottom: 0.8rem">
+                            <i class="fa-solid fa-circle-info"></i>
+                            Yeni bir model mimarisi tanımlayın. Pip gereksinimleri model ilk yüklendiğinde otomatik kurulur.
+                        </p>
+                        <div class="input-section">
+                            <label for="family-name">Aile Adı</label>
+                            <input type="text" id="family-name" placeholder="Örn: InternVL2-Custom" class="form-input">
+                        </div>
+                        <div class="input-section" style="margin-top: 0.8rem">
+                            <label for="family-description">Açıklama</label>
+                            <input type="text" id="family-description" placeholder="Kısa açıklama (isteğe bağlı)" class="form-input">
+                        </div>
+                        <div class="input-section" style="margin-top: 0.8rem">
+                            <label for="family-strategy">Yükleme Stratejisi</label>
+                            <select id="family-strategy" class="form-input">
+                                <option value="pipeline">HF Pipeline (image-to-text) — BLIP, GIT, vb.</option>
+                                <option value="causal_lm">AutoModel CausalLM — LLaVA-Next HF, vb.</option>
+                                <option value="blip2">BLIP-2</option>
+                                <option value="internvl">InternVL / InternVL2</option>
+                            </select>
+                        </div>
+                        <div class="input-section" style="margin-top: 0.8rem">
+                            <label for="family-requirements">Pip Gereksinimleri</label>
+                            <input type="text" id="family-requirements" placeholder="Örn: timm, einops, flash-attn" class="form-input">
+                            <span class="hint">Virgülle ayırın. İlk yüklemede otomatik kurulur.</span>
+                        </div>
+                        <button id="add-family-btn" class="btn-secondary" style="margin-top: 1rem">
+                            <i class="fa-solid fa-floppy-disk"></i> Aileyi Kaydet
+                        </button>
+                        <p id="add-family-status" class="hint"></p>
+
+                        <!-- Existing custom families list -->
+                        <div id="custom-families-list" style="margin-top: 1rem"></div>
+                    </div>
+                </div>
+
+                <!-- Model Selector -->
+                <div class="model-selector" id="model-selector">
+                    <label><i class="fa-solid fa-layer-group"></i> Model Seçimi</label>
+                    <p class="hint">Kütüphaneden karşılaştırmak istediğiniz modelleri işaretleyin.</p>
+                    <div class="model-groups" id="model-groups">
+                        <div class="loader-small"><div class="spinner-small"></div> Kütüphane yükleniyor...</div>
+                    </div>
+                </div>
+
+                <!-- Compare Button -->
+                <button id="compare-btn" class="btn-primary" disabled>
+                    <i class="fa-solid fa-code-compare"></i>
+                    <span>Karşılaştır</span>
+                </button>
+                <p class="auto-hint"><i class="fa-solid fa-circle-info"></i> Seçili modeller sırayla yüklenip kapatılarak VRAM tasarrufu sağlanır.</p>
+            </section>
+
+            <!-- Right Panel: Results -->
+            <section class="results-panel" id="results-panel">
+                <div class="results-empty" id="results-empty">
+                    <i class="fa-solid fa-image fa-3x"></i>
+                    <h3>Sonuçlar Burada Görünecek</h3>
+                    <p>Bir resim yükleyin, modelleri seçin ve karşılaştırmaya başlayın.</p>
+                </div>
+
+                <!-- Progress Bar -->
+                <div class="progress-container hidden" id="progress-container">
+                    <div class="progress-info">
+                        <span id="progress-text">Hazırlanıyor...</span>
+                        <span id="progress-count">0/0</span>
+                    </div>
+                    <div class="progress-bar">
+                        <div class="progress-fill" id="progress-fill"></div>
+                    </div>
+                </div>
+
+                <!-- Result Cards -->
+                <div class="result-cards" id="result-cards"></div>
+            </section>
+        </main>
+
+        <footer class="footer">
+            <p>&copy; 2026 Project VLM — Ismail Cinar</p>
+        </footer>
+    </div>
+
+    <script src="main.js"></script>
+</body>
+</html>
