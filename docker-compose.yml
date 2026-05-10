@@ -20,6 +20,7 @@ services:
       - generic_vlm
     security_opt:
       - label=disable
+      - apparmor=unconfined
 
   qwen_vlm:
     build:
@@ -39,6 +40,7 @@ services:
       - /dev/nvidia-uvm-tools:/dev/nvidia-uvm-tools
     security_opt:
       - label=disable
+      - apparmor=unconfined
 
   rsllava_vlm:
     build:
@@ -58,6 +60,7 @@ services:
       - /dev/nvidia-uvm-tools:/dev/nvidia-uvm-tools
     security_opt:
       - label=disable
+      - apparmor=unconfined
 
   generic_vlm:
     build:
@@ -77,3 +80,4 @@ services:
       - /dev/nvidia-uvm-tools:/dev/nvidia-uvm-tools
     security_opt:
       - label=disable
+      - apparmor=unconfined
