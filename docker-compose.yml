@@ -1,5 +1,3 @@
-version: '3.8'
-
 services:
   webapp:
     build:
@@ -18,9 +16,6 @@ services:
       - qwen_vlm
       - rsllava_vlm
       - generic_vlm
-    security_opt:
-      - label=disable
-      - apparmor=unconfined
 
   qwen_vlm:
     build:
@@ -33,17 +28,8 @@ services:
       - /home/ismail/project_vlm:/home/ismail/project_vlm
       - /home/ismail/.cache/huggingface:/root/.cache/huggingface
       - /tmp/nvidia-libs:/usr/local/nvidia/lib64:ro
-    privileged: true
-    deploy:
-      resources:
-        reservations:
-          devices:
-            - driver: nvidia
-              count: 1
-              capabilities: [gpu]
-    security_opt:
-      - label=disable
-      - apparmor=unconfined
+    devices:
+      - "nvidia.com/gpu=all"
 
   rsllava_vlm:
     build:
@@ -56,17 +42,8 @@ services:
       - /home/ismail/project_vlm:/home/ismail/project_vlm
       - /home/ismail/.cache/huggingface:/root/.cache/huggingface
       - /tmp/nvidia-libs:/usr/local/nvidia/lib64:ro
-    privileged: true
-    deploy:
-      resources:
-        reservations:
-          devices:
-            - driver: nvidia
-              count: 1
-              capabilities: [gpu]
-    security_opt:
-      - label=disable
-      - apparmor=unconfined
+    devices:
+      - "nvidia.com/gpu=all"
 
   generic_vlm:
     build:
@@ -79,14 +56,5 @@ services:
       - /home/ismail/project_vlm:/home/ismail/project_vlm
       - /home/ismail/.cache/huggingface:/root/.cache/huggingface
       - /tmp/nvidia-libs:/usr/local/nvidia/lib64:ro
-    privileged: true
-    deploy:
-      resources:
-        reservations:
-          devices:
-            - driver: nvidia
-              count: 1
-              capabilities: [gpu]
-    security_opt:
-      - label=disable
-      - apparmor=unconfined
+    devices:
+      - "nvidia.com/gpu=all"
