@@ -9,7 +9,7 @@ from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel
 from PIL import Image
 
-sys.path.insert(0, "/home/ismail/project_vlm/RS-LLaVA")
+sys.path.insert(0, os.environ.get("RS_LLAVA_PATH", "/home/ismail/project_vlm/RS-LLaVA"))
 
 try:
     from llava.constants import IMAGE_TOKEN_INDEX, DEFAULT_IMAGE_TOKEN
