@@ -146,6 +146,7 @@ def generate(req: GenerateRequest):
                 **inputs,
                 max_new_tokens=512,
                 do_sample=False,
+                repetition_penalty=1.05,
             )
 
         n_input = inputs["input_ids"].shape[1]

@@ -225,7 +225,10 @@ def generate(req: GenerateRequest):
             output_ids = model.generate(
                 **inputs,
                 max_new_tokens=512,
-                do_sample=False,
+                do_sample=True,
+                temperature=0.2,
+                top_p=0.9,
+                repetition_penalty=1.1,
             )
 
         n_input = inputs["input_ids"].shape[1]
