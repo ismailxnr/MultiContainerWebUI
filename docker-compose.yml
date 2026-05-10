@@ -33,6 +33,7 @@ services:
       - /home/ismail/project_vlm:/home/ismail/project_vlm
       - /home/ismail/.cache/huggingface:/root/.cache/huggingface
       - /tmp/nvidia-libs:/usr/local/nvidia/lib64:ro
+    privileged: true
     deploy:
       resources:
         reservations:
@@ -55,6 +56,7 @@ services:
       - /home/ismail/project_vlm:/home/ismail/project_vlm
       - /home/ismail/.cache/huggingface:/root/.cache/huggingface
       - /tmp/nvidia-libs:/usr/local/nvidia/lib64:ro
+    privileged: true
     deploy:
       resources:
         reservations:
@@ -77,6 +79,7 @@ services:
       - /home/ismail/project_vlm:/home/ismail/project_vlm
       - /home/ismail/.cache/huggingface:/root/.cache/huggingface
       - /tmp/nvidia-libs:/usr/local/nvidia/lib64:ro
+    privileged: true
     deploy:
       resources:
         reservations:
