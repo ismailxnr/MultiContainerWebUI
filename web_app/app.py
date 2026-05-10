@@ -17,50 +17,6 @@ FAMILIES_FILE = os.path.join(os.path.dirname(__file__), "families.json")
 
 app = FastAPI(title="VLM Studio")
 
-
-async def _preload_all_models_bg():
-    """Background task: load all models into ML servers so first compare is instant."""
-    await asyncio.sleep(12)  # wait for ML servers to initialize
-
-    AVAILABLE_MODELS = scan_available_models()
-    FAMILIES = load_families()
-
-    if not AVAILABLE_MODELS:
-        print("[preload] No models configured.")
-        return
-
-    print(f"[preload] Loading {len(AVAILABLE_MODELS)} models in parallel...")
-
-    def _blocking_load(key, info):
-        family_key = info.get("family", "pipeline")
-        family_info = FAMILIES.get(family_key, {})
-        requirements = family_info.get("requirements", [])
-        wrapper = get_wrapper_for_family(family_key, FAMILIES)
-        wrapper.load(info["path"], family=family_key, requirements=requirements)
-        return info["name"]
-
-    loop = asyncio.get_event_loop()
-    tasks = [
-        loop.run_in_executor(None, _blocking_load, k, v)
-        for k, v in AVAILABLE_MODELS.items()
-    ]
-    results = await asyncio.gather(*tasks, return_exceptions=True)
-
-    for (key, info), result in zip(AVAILABLE_MODELS.items(), results):
-        if isinstance(result, Exception):
-            print(f"[preload] ✗ {info['name']}: {result}")
-        else:
-            print(f"[preload] ✓ {result}")
-
-    print("[preload] All models loaded — comparisons will be instant.")
-
-
-@app.on_event("startup")
-async def startup_event():
-    # Fire preload as a background task so the web UI is immediately available
-    asyncio.create_task(_preload_all_models_bg())
-
-
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],

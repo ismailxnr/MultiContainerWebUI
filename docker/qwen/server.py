@@ -9,14 +9,6 @@ from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel
 from PIL import Image
 
-try:
-    from transformers import AutoModelForImageTextToText, AutoProcessor
-    from peft import PeftModel, PeftConfig
-    _IMPORTS_OK = True
-except ImportError as e:
-    print(f"[qwen] WARNING: import failed at startup: {e}")
-    _IMPORTS_OK = False
-
 app = FastAPI(title="Qwen VLM Service")
 
 model_registry: dict = {}  # model_path -> {"model": ..., "processor": ...}
@@ -51,30 +43,24 @@ def _load_model_auto(model_cls, model_id, **kwargs):
         try:
             return model_cls.from_pretrained(
                 model_id, quantization_config=bnb_config,
-                device_map="auto", torch_dtype=torch.bfloat16,
-                attn_implementation="sdpa", **kwargs,
+                device_map="auto", torch_dtype=torch.bfloat16, **kwargs,
             )
         except Exception as e:
-            print(f"[qwen] 4-bit+sdpa load failed ({e}), trying without sdpa")
-            try:
-                return model_cls.from_pretrained(
-                    model_id, quantization_config=bnb_config,
-                    device_map="auto", torch_dtype=torch.bfloat16, **kwargs,
-                )
-            except Exception as e2:
-                print(f"[qwen] 4-bit load failed ({e2}), trying fp16")
+            print(f"[qwen] 4-bit load failed ({e}), trying fp16")
 
     try:
         return model_cls.from_pretrained(
-            model_id, device_map="auto", torch_dtype=torch.bfloat16,
-            attn_implementation="sdpa", **kwargs,
+            model_id, device_map="auto", torch_dtype=torch.float16, **kwargs,
         )
     except Exception as e:
-        print(f"[qwen] bf16+sdpa load failed ({e}), falling back to fp32")
+        print(f"[qwen] fp16 load failed ({e}), falling back to fp32")
         return model_cls.from_pretrained(model_id, device_map="auto", **kwargs)
 
 
 def _do_load(model_path: str):
+    from transformers import AutoModelForImageTextToText, AutoProcessor
+    from peft import PeftModel, PeftConfig
+
     is_lora = os.path.exists(os.path.join(model_path, "adapter_config.json"))
 
     if is_lora:
@@ -146,7 +132,6 @@ def generate(req: GenerateRequest):
                 **inputs,
                 max_new_tokens=512,
                 do_sample=False,
-                repetition_penalty=1.05,
             )
 
         n_input = inputs["input_ids"].shape[1]

@@ -8,20 +8,6 @@ from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel
 from PIL import Image
 
-# Pre-import at module level to avoid threading race conditions with
-# transformers' lazy import system when concurrent /load requests arrive.
-try:
-    from transformers import (
-        LlavaNextProcessor, LlavaNextForConditionalGeneration,
-        LlavaForConditionalGeneration, AutoProcessor,
-    )
-    from peft import PeftModel, PeftConfig, get_peft_model, LoraConfig
-    from safetensors.torch import load_file as _safetensors_load_file
-    _IMPORTS_OK = True
-except ImportError as e:
-    print(f"[rsllava] WARNING: import failed at startup: {e}")
-    _IMPORTS_OK = False
-
 app = FastAPI(title="RS-LLaVA VLM Service")
 
 model_registry: dict = {}  # model_path -> {"model": ..., "processor": ..., "model_type": ...}
@@ -50,7 +36,7 @@ def _load_model_auto(model_cls, model_id, **kwargs):
         bnb_config = BitsAndBytesConfig(
             load_in_4bit=True,
             bnb_4bit_quant_type="nf4",
-            bnb_4bit_compute_dtype=torch.bfloat16,  # H200 native BF16
+            bnb_4bit_compute_dtype=torch.float16,
             bnb_4bit_use_double_quant=True,
         )
         try:
@@ -58,14 +44,14 @@ def _load_model_auto(model_cls, model_id, **kwargs):
                 model_id, device_map="auto", quantization_config=bnb_config, **kwargs,
             )
         except Exception as e:
-            print(f"[rsllava] 4-bit load failed ({e}), trying bf16")
+            print(f"[rsllava] 4-bit load failed ({e}), trying fp16")
 
     try:
         return model_cls.from_pretrained(
-            model_id, device_map="auto", torch_dtype=torch.bfloat16, **kwargs,
+            model_id, device_map="auto", torch_dtype=torch.float16, **kwargs,
         )
     except Exception as e:
-        print(f"[rsllava] bf16 load failed ({e}), falling back to fp32")
+        print(f"[rsllava] fp16 load failed ({e}), falling back to fp32")
         return model_cls.from_pretrained(model_id, device_map="auto", **kwargs)
 
 
@@ -78,7 +64,8 @@ def _load_lora_remap_v15(model, adapter_path):
       liuhaotian: base_model.model.model.layers.X ... lora_A.weight
       HF-native:  base_model.model.model.language_model.layers.X ... lora_A.default.weight
     """
-    load_file = _safetensors_load_file
+    from peft import get_peft_model, LoraConfig, PeftConfig
+    from safetensors.torch import load_file
 
     peft_cfg = PeftConfig.from_pretrained(adapter_path)
     lora_config = LoraConfig(
@@ -117,6 +104,12 @@ def _load_lora_remap_v15(model, adapter_path):
 
 
 def _do_load(model_path: str):
+    from transformers import (
+        LlavaNextProcessor, LlavaNextForConditionalGeneration,
+        LlavaForConditionalGeneration, AutoProcessor,
+    )
+    from peft import PeftModel, PeftConfig
+
     is_lora = os.path.exists(os.path.join(model_path, "adapter_config.json"))
 
     if is_lora:
@@ -218,9 +211,8 @@ def generate(req: GenerateRequest):
                 **inputs,
                 max_new_tokens=512,
                 do_sample=True,
-                temperature=0.2,
+                temperature=0.5,
                 top_p=0.9,
-                repetition_penalty=1.1,
             )
 
         n_input = inputs["input_ids"].shape[1]
