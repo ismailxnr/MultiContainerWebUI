@@ -15,7 +15,7 @@ PROJECT_ROOT = os.path.dirname(os.path.dirname(__file__))
 CUSTOM_MODELS_FILE = os.path.join(os.path.dirname(__file__), "custom_models.json")
 FAMILIES_FILE = os.path.join(os.path.dirname(__file__), "families.json")
 
-app = FastAPI(title="RS-LLaVA Web App")
+app = FastAPI(title="VLM Studio")
 
 app.add_middleware(
     CORSMiddleware,
@@ -23,12 +23,6 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
-
-# Global model state
-model_state = {
-    "wrapper": None,
-    "loaded_key": None,
-}
 
 # ─── Families ────────────────────────────────────────────────
 
@@ -90,7 +84,6 @@ def load_families() -> dict:
         try:
             with open(FAMILIES_FILE, "r", encoding="utf-8") as f:
                 custom = json.load(f)
-            # Only add non-builtin entries (skip overriding builtins from file)
             for k, v in custom.items():
                 if k not in BUILTIN_FAMILIES:
                     families[k] = v
@@ -145,40 +138,7 @@ def save_custom_model(key, name, path, family):
 
 
 def scan_available_models():
-    models = {}
-    for k, v in load_custom_models().items():
-        models[k] = v
-    return models
-
-
-def load_model_by_key(model_key):
-    global model_state
-    AVAILABLE_MODELS = scan_available_models()
-    FAMILIES = load_families()
-
-    if model_state["loaded_key"] == model_key:
-        return
-
-    if model_state["wrapper"] is not None:
-        model_state["wrapper"].unload()
-        model_state["wrapper"] = None
-
-    if model_key not in AVAILABLE_MODELS:
-        raise ValueError(f"Model {model_key} not found.")
-
-    model_info = AVAILABLE_MODELS[model_key]
-    model_path = model_info["path"]
-    family_key = model_info.get("family", "pipeline")
-
-    family_info = FAMILIES.get(family_key, {})
-    requirements = family_info.get("requirements", [])
-
-    wrapper = get_wrapper_for_family(family_key, FAMILIES)
-    print(f"Loading {model_key} via family '{family_key}' ...")
-    wrapper.load(model_path, family=family_key, requirements=requirements)
-
-    model_state["wrapper"] = wrapper
-    model_state["loaded_key"] = model_key
+    return dict(load_custom_models())
 
 
 # ─── API: Families ───────────────────────────────────────────
@@ -313,45 +273,96 @@ async def compare(image: UploadFile = File(...), models: str = Form(...), prompt
     model_keys = json.loads(models)
 
     AVAILABLE_MODELS = scan_available_models()
+    FAMILIES = load_families()
+
+    valid_keys = [k for k in model_keys if k in AVAILABLE_MODELS]
 
     async def event_stream():
         loop = asyncio.get_running_loop()
-        for i, key in enumerate(model_keys):
-            info = AVAILABLE_MODELS.get(key)
-            if not info:
-                continue
 
-            yield f"data: {json.dumps({'type': 'loading', 'model_key': key, 'model_name': info['name'], 'index': i, 'total': len(model_keys)})}\n\n"
+        # Announce loading for all models upfront
+        for i, key in enumerate(valid_keys):
+            info = AVAILABLE_MODELS[key]
+            yield f"data: {json.dumps({'type': 'loading', 'model_key': key, 'model_name': info['name'], 'index': i, 'total': len(valid_keys)})}\n\n"
 
+        # Load all models in parallel
+        load_results = {}
+
+        def _load_one(key):
+            info = AVAILABLE_MODELS[key]
+            model_path = info["path"]
+            family_key = info.get("family", "pipeline")
+            family_info = FAMILIES.get(family_key, {})
+            requirements = family_info.get("requirements", [])
+            wrapper = get_wrapper_for_family(family_key, FAMILIES)
+            t0 = time.time()
+            wrapper.load(model_path, family=family_key, requirements=requirements)
+            return wrapper, time.time() - t0
+
+        async def load_parallel(key):
             try:
-                t0 = time.time()
-                await loop.run_in_executor(None, load_model_by_key, key)
-                load_time = time.time() - t0
-
-                t1 = time.time()
-                wrapper = model_state["wrapper"]
-                caption = await loop.run_in_executor(None, wrapper.generate, pil_image.copy(), prompt)
-                infer_time = time.time() - t1
-
-                def _unload():
-                    wrapper.unload()
-                    model_state["wrapper"] = None
-                    model_state["loaded_key"] = None
-
-                await loop.run_in_executor(None, _unload)
-
-                yield f"data: {json.dumps({'type': 'result', 'model_key': key, 'model_name': info['name'], 'caption': caption, 'load_time': round(load_time, 1), 'infer_time': round(infer_time, 1), 'index': i, 'total': len(model_keys)})}\n\n"
-
+                wrapper, load_time = await loop.run_in_executor(None, _load_one, key)
+                load_results[key] = {"wrapper": wrapper, "load_time": load_time, "error": None}
             except Exception as e:
-                def _cleanup():
-                    if model_state["wrapper"] is not None:
-                        model_state["wrapper"].unload()
-                        model_state["wrapper"] = None
-                        model_state["loaded_key"] = None
+                load_results[key] = {"wrapper": None, "load_time": 0.0, "error": str(e)}
 
-                await loop.run_in_executor(None, _cleanup)
+        await asyncio.gather(*[load_parallel(k) for k in valid_keys])
 
-                yield f"data: {json.dumps({'type': 'error', 'model_key': key, 'model_name': info['name'], 'error': str(e), 'index': i, 'total': len(model_keys)})}\n\n"
+        # Generate all in parallel, stream results as they arrive
+        result_q: asyncio.Queue = asyncio.Queue()
+
+        async def gen_parallel(i, key):
+            info = AVAILABLE_MODELS[key]
+            lr = load_results[key]
+
+            if lr["error"]:
+                await result_q.put({
+                    "type": "error", "model_key": key, "model_name": info["name"],
+                    "error": lr["error"], "index": i, "total": len(valid_keys),
+                })
+                return
+
+            wrapper = lr["wrapper"]
+            try:
+                t1 = time.time()
+                caption = await loop.run_in_executor(
+                    None, wrapper.generate, pil_image.copy(), prompt
+                )
+                infer_time = time.time() - t1
+                await result_q.put({
+                    "type": "result", "model_key": key, "model_name": info["name"],
+                    "caption": caption,
+                    "load_time": round(lr["load_time"], 1),
+                    "infer_time": round(infer_time, 1),
+                    "index": i, "total": len(valid_keys),
+                })
+            except Exception as e:
+                await result_q.put({
+                    "type": "error", "model_key": key, "model_name": info["name"],
+                    "error": str(e), "index": i, "total": len(valid_keys),
+                })
+
+        gen_tasks = [
+            asyncio.create_task(gen_parallel(i, k))
+            for i, k in enumerate(valid_keys)
+        ]
+
+        completed = 0
+        while completed < len(valid_keys):
+            item = await result_q.get()
+            yield f"data: {json.dumps(item)}\n\n"
+            completed += 1
+
+        await asyncio.gather(*gen_tasks, return_exceptions=True)
+
+        # Unload all loaded models
+        async def unload_one(wrapper):
+            await loop.run_in_executor(None, wrapper.unload)
+
+        await asyncio.gather(
+            *[unload_one(lr["wrapper"]) for lr in load_results.values() if lr["wrapper"]],
+            return_exceptions=True,
+        )
 
         yield f"data: {json.dumps({'type': 'done'})}\n\n"
 
@@ -360,37 +371,6 @@ async def compare(image: UploadFile = File(...), models: str = Form(...), prompt
         media_type="text/event-stream",
         headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"},
     )
-
-
-@app.post("/generate")
-async def generate(image: UploadFile = File(...), prompt: str = Form(None)):
-    if not prompt or prompt.strip() == "":
-        prompt = "Bu uzaktan algılama görüntüsünü Türkçe olarak açıklayın."
-
-    if model_state["wrapper"] is None:
-        AVAILABLE_MODELS = scan_available_models()
-        if not AVAILABLE_MODELS:
-            return JSONResponse(
-                {"error": "Hiçbir model eklenmemiş. Lütfen önce bir model ekleyin."},
-                status_code=400,
-            )
-        default_key = list(AVAILABLE_MODELS.keys())[0]
-        load_model_by_key(default_key)
-
-    try:
-        contents = await image.read()
-        pil_image = Image.open(io.BytesIO(contents)).convert("RGB")
-        wrapper = model_state["wrapper"]
-        caption = wrapper.generate(pil_image, prompt)
-
-        wrapper.unload()
-        model_state["wrapper"] = None
-        model_state["loaded_key"] = None
-
-        return JSONResponse({"caption": caption})
-    except Exception as e:
-        print(f"Error during inference: {e}")
-        return JSONResponse({"error": str(e)}, status_code=500)
 
 
 # Mount static files

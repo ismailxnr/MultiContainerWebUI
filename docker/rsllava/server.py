@@ -3,18 +3,14 @@ import base64
 import gc
 import os
 import torch
+from typing import Optional
 from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel
 from PIL import Image
 
 app = FastAPI(title="RS-LLaVA VLM Service")
 
-model_state = {
-    "model": None,
-    "processor": None,
-    "loaded_path": None,
-    "model_type": None,  # "llava_next" | "llava_15"
-}
+model_registry: dict = {}  # model_path -> {"model": ..., "processor": ..., "model_type": ...}
 
 
 class LoadRequest(BaseModel):
@@ -22,12 +18,16 @@ class LoadRequest(BaseModel):
 
 
 class GenerateRequest(BaseModel):
+    model_path: str
     image_base64: str
     prompt: str
 
 
+class UnloadRequest(BaseModel):
+    model_path: Optional[str] = None
+
+
 def _load_model_auto(model_cls, model_id, **kwargs):
-    """Load model with 4-bit quantization if CUDA is available, otherwise fp16/fp32."""
     from transformers import BitsAndBytesConfig
 
     has_cuda = torch.cuda.is_available()
@@ -62,7 +62,7 @@ def _load_lora_remap_v15(model, adapter_path):
 
     Key differences that require remapping:
       liuhaotian: base_model.model.model.layers.X ... lora_A.weight
-      HF-native:  base_model.model.language_model.model.layers.X ... lora_A.default.weight
+      HF-native:  base_model.model.model.language_model.layers.X ... lora_A.default.weight
     """
     from peft import get_peft_model, LoraConfig, PeftConfig
     from safetensors.torch import load_file
@@ -85,8 +85,6 @@ def _load_lora_remap_v15(model, adapter_path):
 
     remapped = {}
     for k, v in raw.items():
-        # liuhaotian:  base_model.model.model.layers.X...lora_A.weight
-        # HF-native:   base_model.model.model.language_model.layers.X...lora_A.default.weight
         new_k = k.replace(
             "base_model.model.model.layers.",
             "base_model.model.model.language_model.layers.",
@@ -119,7 +117,6 @@ def _do_load(model_path: str):
         base_id = peft_cfg.base_model_name_or_path
 
         if "liuhaotian" in base_id or "llava-v1.5" in base_id:
-            # LoRA trained with liuhaotian codebase — load HF-native LLaVA-1.5
             hf_base = "llava-hf/llava-1.5-7b-hf"
             print(f"[rsllava] LLaVA-1.5 LoRA (liuhaotian fmt) → HF base: {hf_base}")
             processor = AutoProcessor.from_pretrained(hf_base)
@@ -127,7 +124,6 @@ def _do_load(model_path: str):
             model = _load_lora_remap_v15(model, model_path)
             model_type = "llava_15"
         else:
-            # LLaVA-Next (1.6) HF-native LoRA
             print(f"[rsllava] LoRA checkpoint detected. Base model: {base_id}")
             processor = LlavaNextProcessor.from_pretrained(base_id)
             model = _load_model_auto(LlavaNextForConditionalGeneration, base_id)
@@ -148,27 +144,26 @@ def _do_load(model_path: str):
     return processor, model, model_type
 
 
+def _free_entry(entry: dict):
+    if entry.get("model") is not None:
+        del entry["model"]
+    if entry.get("processor") is not None:
+        del entry["processor"]
+
+
 @app.post("/load")
 def load_model(req: LoadRequest):
-    if model_state["loaded_path"] == req.model_path:
+    if req.model_path in model_registry:
         return {"status": "already loaded"}
-
-    if model_state["model"] is not None:
-        del model_state["model"]
-        del model_state["processor"]
-        model_state["model"] = None
-        model_state["processor"] = None
-        model_state["model_type"] = None
-        gc.collect()
-        torch.cuda.empty_cache()
 
     try:
         print(f"[rsllava] Loading model from {req.model_path}")
         processor, model, model_type = _do_load(req.model_path)
-        model_state["model"] = model
-        model_state["processor"] = processor
-        model_state["loaded_path"] = req.model_path
-        model_state["model_type"] = model_type
+        model_registry[req.model_path] = {
+            "model": model,
+            "processor": processor,
+            "model_type": model_type,
+        }
         return {"status": "success", "model_type": model_type}
     except Exception as e:
         print(f"[rsllava] Error loading model: {e}")
@@ -177,25 +172,24 @@ def load_model(req: LoadRequest):
 
 @app.post("/generate")
 def generate(req: GenerateRequest):
-    if model_state["model"] is None:
-        raise HTTPException(status_code=400, detail="Model not loaded")
+    entry = model_registry.get(req.model_path)
+    if entry is None:
+        raise HTTPException(status_code=400, detail=f"Model not loaded: {req.model_path}")
 
     try:
         image_data = base64.b64decode(req.image_base64)
         pil_image = Image.open(io.BytesIO(image_data)).convert("RGB")
 
-        model = model_state["model"]
-        processor = model_state["processor"]
-        model_type = model_state["model_type"]
+        model = entry["model"]
+        processor = entry["processor"]
+        model_type = entry["model_type"]
 
         if model_type == "llava_15":
-            # LLaVA-1.5 prompt format
             prompt_text = f"USER: <image>\n{req.prompt}\nASSISTANT:"
             inputs = processor(
                 images=pil_image, text=prompt_text, return_tensors="pt"
             ).to(model.device)
         else:
-            # LLaVA-Next (1.6) chat format
             conversation = [
                 {
                     "role": "user",
@@ -230,14 +224,21 @@ def generate(req: GenerateRequest):
 
 
 @app.post("/unload")
-def unload():
-    if model_state["model"] is not None:
-        del model_state["model"]
-        del model_state["processor"]
-        model_state["model"] = None
-        model_state["processor"] = None
-        model_state["loaded_path"] = None
-        model_state["model_type"] = None
+def unload(req: UnloadRequest = None):
+    if req is None:
+        req = UnloadRequest()
+
+    if req.model_path:
+        if req.model_path in model_registry:
+            entry = model_registry.pop(req.model_path)
+            _free_entry(entry)
+            gc.collect()
+            torch.cuda.empty_cache()
+    else:
+        for entry in list(model_registry.values()):
+            _free_entry(entry)
+        model_registry.clear()
         gc.collect()
         torch.cuda.empty_cache()
+
     return {"status": "unloaded"}
