@@ -1,32 +1,252 @@
 document.addEventListener('DOMContentLoaded', () => {
-    // ─── Elements ───
-    const dropZone        = document.getElementById('drop-zone');
-    const fileInput       = document.getElementById('file-input');
-    const uploadPH        = document.getElementById('upload-placeholder');
-    const imagePreview    = document.getElementById('image-preview');
-    const removeImageBtn  = document.getElementById('remove-image');
-    const compareBtn      = document.getElementById('compare-btn');
-    const promptInput     = document.getElementById('prompt-input');
-    const modelGroups     = document.getElementById('model-groups');
-    const resultsEmpty    = document.getElementById('results-empty');
-    const progressWrap    = document.getElementById('progress-container');
-    const progressText    = document.getElementById('progress-text');
-    const progressCount   = document.getElementById('progress-count');
-    const progressFill    = document.getElementById('progress-fill');
-    const resultCards     = document.getElementById('result-cards');
 
-    let currentFile   = null;
+    const dropZone         = document.getElementById('vlm-drop-zone');
+    const fileInput        = document.getElementById('vlm-file-input');
+    const uploadPH         = document.getElementById('vlm-upload-placeholder');
+    const previewWrap      = document.getElementById('vlm-upload-preview-wrap');
+    const imagePreview     = document.getElementById('vlm-image-preview');
+    const removeImageBtn   = document.getElementById('vlm-remove-image');
+    const btnPickImage     = document.getElementById('vlm-btn-pick-image');
+    const compareBtn       = document.getElementById('vlm-compare-btn');
+    const promptInput      = document.getElementById('vlm-prompt-input');
+    const modelGroups      = document.getElementById('vlm-model-groups');
+    const conversationArea = document.getElementById('vlm-conversation-area');
+    const conversationFeed = document.getElementById('vlm-conversation-feed');
+    const chatHistory      = document.getElementById('vlm-chat-history');
+    const btnNewChat       = document.getElementById('vlm-btn-new-chat');
+    const btnSettings      = document.getElementById('vlm-btn-settings');
+    const settingsModal    = document.getElementById('vlm-settings-modal');
+    const settingsClose    = document.getElementById('vlm-settings-modal-close');
+    const editModal        = document.getElementById('vlm-edit-modal');
+
+    let currentFile    = null;
     let selectedModels = new Set();
-    let isComparing   = false;
-    let familiesCache = {};
+    let isComparing    = false;
+    let familiesCache  = {};
+    let currentSessionId = null;
+    let sessions = [];
 
-    // ─── Families ───
+    // ─── Typewriter ─────────────────────────────────────────
+    function typewriterEffect(el, text, wpm = 420) {
+        return new Promise(resolve => {
+            el.textContent = '';
+
+            const cursor = document.createElement('span');
+            cursor.className = 'tw-cursor';
+            el.appendChild(cursor);
+
+            const words = text.split(' ');
+            const msPerWord = Math.round(60000 / wpm);
+            let i = 0;
+
+            function next() {
+                if (i >= words.length) {
+                    el.removeChild(cursor);
+                    resolve();
+                    return;
+                }
+                const word = document.createTextNode((i === 0 ? '' : ' ') + words[i]);
+                el.insertBefore(word, cursor);
+                i++;
+                const jitter = msPerWord * (0.85 + Math.random() * 0.30);
+                setTimeout(next, jitter);
+            }
+
+            setTimeout(next, 120);
+        });
+    }
+
+    // ─── Skeleton ───────────────────────────────────────────
+    function skeletonHTML() {
+        return `
+        <div class="result-body">
+            <span class="skeleton skel-title"></span>
+            <span class="skeleton skel-line"></span>
+            <span class="skeleton skel-line"></span>
+            <span class="skeleton skel-line"></span>
+            <span class="skeleton skel-line"></span>
+        </div>`;
+    }
+
+    // ─── Session Management ──────────────────────────────────
+    function dataURLtoFile(dataUrl, filename) {
+        const parts = dataUrl.split(',');
+        const mime = (parts[0].match(/:(.*?);/) || [, 'image/png'])[1];
+        const bin = atob(parts[1]);
+        const len = bin.length;
+        const arr = new Uint8Array(len);
+        for (let i = 0; i < len; i++) arr[i] = bin.charCodeAt(i);
+        return new File([arr], filename || 'image.png', { type: mime });
+    }
+
+    function clearImageUI() {
+        currentFile = null;
+        fileInput.value = '';
+        imagePreview.removeAttribute('src');
+        uploadPH.classList.remove('hidden');
+        previewWrap.classList.add('hidden');
+        removeImageBtn.classList.add('hidden');
+    }
+
+    function showImageUI(dataUrl, file) {
+        imagePreview.src = dataUrl;
+        uploadPH.classList.add('hidden');
+        previewWrap.classList.remove('hidden');
+        removeImageBtn.classList.remove('hidden');
+        currentFile = file;
+        updateCompareBtn();
+    }
+
+    function persistSessionImage(dataUrl, fileName) {
+        const session = sessions.find(s => s.id === currentSessionId);
+        if (session) {
+            session.imageDataUrl = dataUrl;
+            session.imageFileName = fileName || 'image.png';
+        }
+    }
+
+    function persistSessionModelSelection() {
+        const session = sessions.find(s => s.id === currentSessionId);
+        if (session) session.selectedModelKeys = Array.from(selectedModels);
+    }
+
+    /** DOM’daki tikleri `selectedModels` ile eşitler; listede olmayan anahtarları Set’ten atar. */
+    function applySelectionToModelList() {
+        const validKeys = new Set();
+        modelGroups.querySelectorAll('.model-row').forEach(row => {
+            const cb = row.querySelector('input[type="checkbox"]');
+            if (!cb) return;
+            validKeys.add(cb.value);
+        });
+        for (const k of selectedModels) {
+            if (!validKeys.has(k)) selectedModels.delete(k);
+        }
+        modelGroups.querySelectorAll('.model-row').forEach(row => {
+            const cb = row.querySelector('input[type="checkbox"]');
+            if (!cb) return;
+            const on = selectedModels.has(cb.value);
+            cb.checked = on;
+            row.classList.toggle('selected', on);
+        });
+    }
+
+    function restoreSessionModelSelection(session) {
+        selectedModels.clear();
+        const fromSaved = session.selectedModelKeys?.length
+            ? session.selectedModelKeys
+            : (session.results || []).map(r => r.model_key);
+        const seen = new Set();
+        for (const k of fromSaved) {
+            if (k && !seen.has(k)) {
+                seen.add(k);
+                selectedModels.add(k);
+            }
+        }
+    }
+
+    function createNewSession() {
+        const sessionId = Date.now().toString();
+        const session = {
+            id: sessionId,
+            timestamp: new Date().toLocaleString('tr-TR'),
+            results: [],
+            imageDataUrl: null,
+            imageFileName: null,
+            selectedModelKeys: []
+        };
+        sessions.unshift(session);
+        currentSessionId = sessionId;
+
+        clearImageUI();
+        promptInput.value = '';
+        conversationFeed.innerHTML = '';
+        selectedModels.clear();
+        applySelectionToModelList();
+        updateCompareBtn();
+
+        renderChatHistory();
+    }
+
+    function renderChatHistory() {
+        chatHistory.innerHTML = '';
+        if (!sessions.length) {
+            chatHistory.innerHTML = '<p class="history-empty">Henüz karşılaştırma yok</p>';
+            return;
+        }
+        sessions.forEach(session => {
+            const item = document.createElement('div');
+            item.className = `history-item ${session.id === currentSessionId ? 'active' : ''}`;
+            item.innerHTML = `<i class="fa-solid fa-image"></i> <span>${session.timestamp}</span><button class="history-delete" title="Sil"><i class="fa-solid fa-xmark"></i></button>`;
+            item.querySelector('span').addEventListener('click', e => {
+                e.stopPropagation();
+                loadSession(session.id);
+            });
+            item.querySelector('.history-delete').addEventListener('click', e => {
+                e.stopPropagation();
+                const idx = sessions.findIndex(s => s.id === session.id);
+                if (idx > -1) {
+                    sessions.splice(idx, 1);
+                    if (session.id === currentSessionId) {
+                        if (sessions.length > 0) {
+                            loadSession(sessions[0].id);
+                        } else {
+                            createNewSession();
+                        }
+                    } else {
+                        renderChatHistory();
+                    }
+                }
+            });
+            chatHistory.appendChild(item);
+        });
+    }
+
+    function loadSession(sessionId) {
+        const session = sessions.find(s => s.id === sessionId);
+        if (!session) return;
+
+        currentSessionId = sessionId;
+        fileInput.value = '';
+        promptInput.value = '';
+
+        restoreSessionModelSelection(session);
+        applySelectionToModelList();
+
+        if (session.imageDataUrl) {
+            const name = session.imageFileName || 'image.png';
+            try {
+                const file = dataURLtoFile(session.imageDataUrl, name);
+                showImageUI(session.imageDataUrl, file);
+            } catch (_) {
+                clearImageUI();
+            }
+        } else {
+            clearImageUI();
+        }
+
+        updateCompareBtn();
+
+        conversationFeed.innerHTML = '';
+        if (session.results.length > 0) {
+            const block = document.createElement('div');
+            block.className = 'comparison-block';
+            session.results.forEach(result => {
+                const card = createResultCard(result.model_name, result.model_key, result.caption, result.load_time, result.infer_time);
+                block.appendChild(card);
+            });
+            conversationFeed.appendChild(block);
+        }
+
+        renderChatHistory();
+    }
+
+    // ─── Families ───────────────────────────────────────────
     async function loadFamilies() {
         try {
             const res = await fetch('/api/families');
             familiesCache = await res.json();
-            populateFamilyDropdown('custom-family');
-            populateFamilyDropdown('edit-family');
+            populateFamilyDropdown('vlm-custom-family');
+            populateFamilyDropdown('vlm-edit-family');
             renderCustomFamiliesList();
         } catch (e) { console.error(e); }
     }
@@ -43,21 +263,21 @@ document.addEventListener('DOMContentLoaded', () => {
             sel.appendChild(opt);
         }
         if (prev && sel.querySelector(`option[value="${prev}"]`)) sel.value = prev;
-        if (id === 'custom-family') updateFamilyHint();
+        if (id === 'vlm-custom-family') updateFamilyHint();
     }
 
     function updateFamilyHint() {
-        const info = familiesCache[document.getElementById('custom-family').value];
-        const hint = document.getElementById('family-desc-hint');
+        const info = familiesCache[document.getElementById('vlm-custom-family').value];
+        const hint = document.getElementById('vlm-family-desc-hint');
         if (info) {
             const r = info.requirements?.length ? ` — ${info.requirements.join(', ')}` : '';
             hint.textContent = info.description + r;
         } else hint.textContent = '';
     }
-    document.getElementById('custom-family').addEventListener('change', updateFamilyHint);
+    document.getElementById('vlm-custom-family').addEventListener('change', updateFamilyHint);
 
     function renderCustomFamiliesList() {
-        const container = document.getElementById('custom-families-list');
+        const container = document.getElementById('vlm-custom-families-list');
         const custom = Object.entries(familiesCache).filter(([, v]) => !v.builtin);
         container.innerHTML = '';
         if (!custom.length) return;
@@ -82,7 +302,7 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     }
 
-    // ─── Models ───
+    // ─── Models ─────────────────────────────────────────────
     async function loadModels() {
         try {
             const res = await fetch('/api/models');
@@ -101,47 +321,52 @@ document.addEventListener('DOMContentLoaded', () => {
                 modelGroups.appendChild(titleEl);
 
                 models.forEach(m => {
-                    const row = document.createElement('label');
-                    row.className = 'model-row' + (selectedModels.has(m.key) ? ' selected' : '');
+                    const row = document.createElement('div');
+                    row.className = 'model-row';
                     row.innerHTML = `
-                        <input type="checkbox" value="${m.key}" ${selectedModels.has(m.key) ? 'checked' : ''}>
-                        <span class="model-check"><i class="fa-solid fa-check"></i></span>
-                        <span class="model-name">${m.name}</span>
+                        <input type="checkbox" value="${m.key}" />
+                        <div class="model-check"><i class="fa-solid fa-check model-check-tick" aria-hidden="true"></i></div>
+                        <div class="model-name">${m.name}</div>
                         <div class="model-actions">
-                            <button class="action-btn edit-btn" title="Düzenle" onclick="event.preventDefault()">
-                                <i class="fa-solid fa-pen"></i>
-                            </button>
-                            <button class="action-btn del del-btn" title="Sil" onclick="event.preventDefault()">
-                                <i class="fa-solid fa-trash"></i>
-                            </button>
+                            <button type="button" class="action-btn action-btn-edit" title="Düzenle"><i class="fa-solid fa-pen-to-square"></i></button>
+                            <button type="button" class="action-btn del action-btn-del" title="Sil"><i class="fa-solid fa-trash"></i></button>
                         </div>`;
-
-                    const cb = row.querySelector('input');
-                    cb.addEventListener('change', () => {
-                        if (cb.checked) { selectedModels.add(m.key); row.classList.add('selected'); }
-                        else { selectedModels.delete(m.key); row.classList.remove('selected'); }
+                    
+                    const checkbox = row.querySelector('input');
+                    
+                    // Row'u tıklayınca checkbox'u toggle et
+                    row.addEventListener('click', (e) => {
+                        if (e.target.closest('button')) return; // Button'lardan geçme
+                        checkbox.checked = !checkbox.checked;
+                        checkbox.dispatchEvent(new Event('change', { bubbles: true }));
+                    });
+                    
+                    checkbox.addEventListener('change', () => {
+                        if (checkbox.checked) {
+                            selectedModels.add(m.key);
+                            row.classList.add('selected');
+                        } else {
+                            selectedModels.delete(m.key);
+                            row.classList.remove('selected');
+                        }
+                        persistSessionModelSelection();
                         updateCompareBtn();
                     });
 
-                    row.querySelector('.edit-btn').addEventListener('click', (e) => {
-                        e.preventDefault(); e.stopPropagation();
-                        openEditModal(m.key, m.name);
-                    });
-
-                    row.querySelector('.del-btn').addEventListener('click', async (e) => {
-                        e.preventDefault(); e.stopPropagation();
-                        if (!confirm(`"${m.name}" modelini kaldırmak istiyor musunuz?`)) return;
+                    row.querySelector('.action-btn-edit').addEventListener('click', () => openEditModal(m.key));
+                    row.querySelector('.action-btn-del').addEventListener('click', async () => {
+                        if (!confirm(`"${m.name}" silinsin mi?`)) return;
                         const fd = new FormData();
                         fd.append('key', m.key);
-                        await fetch('/api/models/remove', { method: 'DELETE', body: fd });
-                        selectedModels.delete(m.key);
-                        updateCompareBtn();
+                        await fetch('/api/models/delete', { method: 'DELETE', body: fd });
                         await loadModels();
+                        await refreshModelsFlat();
                     });
 
                     modelGroups.appendChild(row);
                 });
             }
+            applySelectionToModelList();
         } catch (e) {
             modelGroups.innerHTML = '<p style="color:var(--red);font-size:0.8rem">Model listesi yüklenemedi.</p>';
         }
@@ -149,85 +374,68 @@ document.addEventListener('DOMContentLoaded', () => {
 
     loadFamilies();
     loadModels();
+    createNewSession();
 
-    // ─── Edit Modal ───
-    function openEditModal(key, name) {
-        const models = getModelsFlat();
-        const m = models.find(x => x.key === key);
-        if (!m) return;
-
-        document.getElementById('edit-key').value = key;
-        document.getElementById('edit-name').value = m.name;
-        document.getElementById('edit-path').value = m.path || '';
-
-        populateFamilyDropdown('edit-family');
-        const editFamilySel = document.getElementById('edit-family');
-        if (m.family && editFamilySel.querySelector(`option[value="${m.family}"]`)) {
-            editFamilySel.value = m.family;
-        }
-
-        document.getElementById('edit-status').textContent = '';
-        document.getElementById('edit-status').style.color = '';
-        document.getElementById('edit-modal-overlay').classList.remove('hidden');
-        document.getElementById('edit-name').focus();
-    }
-
+    // ─── Edit Modal ─────────────────────────────────────────
     let modelsFlat = [];
-    function getModelsFlat() { return modelsFlat; }
 
     async function refreshModelsFlat() {
         try {
             const res = await fetch('/api/models');
             const grouped = await res.json();
             modelsFlat = [];
-            for (const [, models] of Object.entries(grouped)) {
-                models.forEach(m => modelsFlat.push(m));
-            }
-        } catch (e) {}
+            for (const [, models] of Object.entries(grouped)) models.forEach(m => modelsFlat.push(m));
+        } catch (_) {}
     }
     refreshModelsFlat();
 
-    const origLoadModels = loadModels;
-    async function loadModelsAndRefresh() {
-        await origLoadModels.apply(this, arguments);
-        await refreshModelsFlat();
+    function openEditModal(key) {
+        const m = modelsFlat.find(x => x.key === key);
+        if (!m) return;
+        document.getElementById('vlm-edit-model-key').value = key;
+        document.getElementById('vlm-edit-name').value = m.name;
+        document.getElementById('vlm-edit-path').value = m.path || '';
+        populateFamilyDropdown('vlm-edit-family');
+        const sel = document.getElementById('vlm-edit-family');
+        if (m.family && sel.querySelector(`option[value="${m.family}"]`)) sel.value = m.family;
+        document.getElementById('vlm-edit-status').textContent = '';
+        editModal.classList.remove('hidden');
+        document.getElementById('vlm-edit-name').focus();
     }
 
-    document.getElementById('modal-close').addEventListener('click', closeModal);
-    document.getElementById('modal-cancel').addEventListener('click', closeModal);
-    document.getElementById('edit-modal-overlay').addEventListener('click', (e) => {
-        if (e.target === document.getElementById('edit-modal-overlay')) closeModal();
+    document.getElementById('vlm-edit-modal-close').addEventListener('click', closeModal);
+    document.getElementById('vlm-edit-modal-cancel').addEventListener('click', closeModal);
+    editModal.addEventListener('click', e => {
+        if (e.target === editModal) closeModal();
     });
 
     function closeModal() {
-        document.getElementById('edit-modal-overlay').classList.add('hidden');
+        editModal.classList.add('hidden');
     }
 
-    document.getElementById('modal-save').addEventListener('click', async () => {
-        const key    = document.getElementById('edit-key').value;
-        const name   = document.getElementById('edit-name').value.trim();
-        const path   = document.getElementById('edit-path').value.trim();
-        const family = document.getElementById('edit-family').value;
-        const status = document.getElementById('edit-status');
+    document.getElementById('vlm-edit-modal-save').addEventListener('click', async () => {
+        const key    = document.getElementById('vlm-edit-model-key').value;
+        const name   = document.getElementById('vlm-edit-name').value.trim();
+        const path   = document.getElementById('vlm-edit-path').value.trim();
+        const family = document.getElementById('vlm-edit-family').value;
+        const status = document.getElementById('vlm-edit-status');
 
         if (!name || !path) {
             status.textContent = 'İsim ve yol boş bırakılamaz.';
-            status.style.color = 'var(--yellow)';
+            status.style.color = 'var(--amber)';
             return;
         }
 
-        const saveBtn = document.getElementById('modal-save');
+        const saveBtn = document.getElementById('vlm-edit-modal-save');
         saveBtn.disabled = true;
         saveBtn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Kaydediliyor...';
 
         const fd = new FormData();
-        fd.append('key', key);
-        fd.append('name', name);
-        fd.append('path', path);
-        fd.append('family', family);
+        fd.append('key', key); fd.append('name', name);
+        fd.append('path', path); fd.append('family', family);
 
         try {
-            const res = await fetch('/api/models/update', { method: 'PUT', body: fd });
+            const res  = await fetch('/api/models/update', { method: 'PUT', body: fd });
             const data = await res.json();
             if (data.status === 'success') {
                 closeModal();
@@ -237,7 +445,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 status.textContent = 'Hata: ' + data.message;
                 status.style.color = 'var(--red)';
             }
-        } catch (e) {
+        } catch (_) {
             status.textContent = 'Bağlantı hatası.';
             status.style.color = 'var(--red)';
         } finally {
@@ -246,49 +454,93 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     });
 
-    // ─── Upload ───
+    // ─── Settings Modal ──────────────────────────────────────
+    btnSettings.addEventListener('click', () => {
+        settingsModal.classList.remove('hidden');
+    });
+
+    settingsClose.addEventListener('click', () => {
+        settingsModal.classList.add('hidden');
+    });
+
+    settingsModal.addEventListener('click', e => {
+        if (e.target === settingsModal) settingsModal.classList.add('hidden');
+    });
+
+    // ─── New Chat ────────────────────────────────────────────
+    btnNewChat.addEventListener('click', createNewSession);
+
+    // ─── Upload ─────────────────────────────────────────────
     function updateCompareBtn() {
         compareBtn.disabled = !(currentFile && selectedModels.size > 0 && !isComparing);
     }
 
-    ['dragenter', 'dragover', 'dragleave', 'drop'].forEach(ev =>
+    ['dragenter','dragover','dragleave','drop'].forEach(ev =>
         dropZone.addEventListener(ev, e => { e.preventDefault(); e.stopPropagation(); }));
-    ['dragenter', 'dragover'].forEach(ev =>
+    ['dragenter','dragover'].forEach(ev =>
         dropZone.addEventListener(ev, () => dropZone.classList.add('dragover')));
-    ['dragleave', 'drop'].forEach(ev =>
+    ['dragleave','drop'].forEach(ev =>
         dropZone.addEventListener(ev, () => dropZone.classList.remove('dragover')));
 
     dropZone.addEventListener('drop', e => handleFiles(e.dataTransfer.files));
-    dropZone.addEventListener('click', () => { if (!currentFile) fileInput.click(); });
+    dropZone.addEventListener('click', () => fileInput.click());
+    dropZone.addEventListener('keydown', e => {
+        if (e.key === 'Enter' || e.key === ' ') {
+            e.preventDefault();
+            fileInput.click();
+        }
+    });
+    btnPickImage.addEventListener('click', e => {
+        e.stopPropagation();
+        fileInput.click();
+    });
     fileInput.addEventListener('change', function () { handleFiles(this.files); });
 
     function handleFiles(files) {
-        if (files.length > 0 && files[0].type.startsWith('image/')) {
-            currentFile = files[0];
-            const reader = new FileReader();
-            reader.readAsDataURL(files[0]);
-            reader.onloadend = () => {
-                imagePreview.src = reader.result;
-                uploadPH.classList.add('hidden');
-                imagePreview.classList.remove('hidden');
-                removeImageBtn.classList.remove('hidden');
-                updateCompareBtn();
-            };
-        }
+        if (!files.length || !files[0].type.startsWith('image/')) return;
+        const file = files[0];
+        const reader = new FileReader();
+        reader.readAsDataURL(file);
+        reader.onloadend = () => {
+            showImageUI(reader.result, file);
+            persistSessionImage(reader.result, file.name);
+        };
     }
 
     removeImageBtn.addEventListener('click', e => {
         e.stopPropagation();
-        currentFile = null;
-        fileInput.value = '';
-        imagePreview.src = '';
-        uploadPH.classList.remove('hidden');
-        imagePreview.classList.add('hidden');
-        removeImageBtn.classList.add('hidden');
+        clearImageUI();
+        const session = sessions.find(s => s.id === currentSessionId);
+        if (session) {
+            session.imageDataUrl = null;
+            session.imageFileName = null;
+        }
         updateCompareBtn();
     });
 
-    // ─── Compare ───
+    // ─── Result Card Creator ────────────────────────────────
+    function createResultCard(modelName, modelKey, caption, loadTime, inferTime) {
+        const card = document.createElement('div');
+        card.className = 'result-card';
+        card.innerHTML = `
+            <div class="result-card-header">
+                <div class="result-model-name">
+                    <i class="fa-solid fa-check-circle icon-success" style="font-size:0.78rem"></i>
+                    ${modelName}
+                    <span class="model-badge">${modelKey.split('/').pop()}</span>
+                </div>
+                <div class="result-times">
+                    <span class="t-load"><i class="fa-solid fa-download"></i> ${loadTime}s</span>
+                    <span class="t-infer"><i class="fa-solid fa-bolt"></i> ${inferTime}s</span>
+                </div>
+            </div>
+            <div class="result-body">
+                <div class="result-caption">${caption}</div>
+            </div>`;
+        return card;
+    }
+
+    // ─── Compare ────────────────────────────────────────────
     compareBtn.addEventListener('click', runComparison);
 
     async function runComparison() {
@@ -299,20 +551,25 @@ document.addEventListener('DOMContentLoaded', () => {
         compareBtn.querySelector('span').textContent = 'İşleniyor...';
         compareBtn.querySelector('i').className = 'fa-solid fa-spinner fa-spin';
 
-        resultsEmpty.classList.add('hidden');
-        progressWrap.classList.remove('hidden');
-        resultCards.innerHTML = '';
-        progressFill.style.width = '0%';
+        conversationFeed.querySelectorAll('.comparison-block').forEach(el => el.remove());
 
+        const block = document.createElement('div');
+        block.className = 'comparison-block';
+        conversationFeed.appendChild(block);
+        conversationArea.scrollTop = conversationArea.scrollHeight;
+
+        const modelsRequested = Array.from(selectedModels);
         const fd = new FormData();
         fd.append('image', currentFile);
-        fd.append('models', JSON.stringify(Array.from(selectedModels)));
+        fd.append('models', JSON.stringify(modelsRequested));
         if (promptInput.value.trim()) fd.append('prompt', promptInput.value.trim());
+
+        const cardMap = {};
 
         try {
             const response = await fetch('/api/compare', { method: 'POST', body: fd });
-            const reader = response.body.getReader();
-            const decoder = new TextDecoder();
+            const reader   = response.body.getReader();
+            const decoder  = new TextDecoder();
             let buffer = '';
 
             while (true) {
@@ -323,18 +580,42 @@ document.addEventListener('DOMContentLoaded', () => {
                 buffer = lines.pop();
                 for (const line of lines) {
                     if (line.startsWith('data: ')) {
-                        try { handleSSE(JSON.parse(line.slice(6))); } catch (_) {}
+                        const data = JSON.parse(line.slice(6));
+                        handleSSE(data, block, cardMap);
                     }
                 }
             }
+
+            // Save session results
+            if (currentSessionId) {
+                const session = sessions.find(s => s.id === currentSessionId);
+                if (session) {
+                    session.results = Object.values(cardMap).map(c => ({
+                        model_name: c.model_name,
+                        model_key: c.model_key,
+                        caption: c.caption,
+                        load_time: c.load_time,
+                        infer_time: c.infer_time
+                    }));
+                    session.selectedModelKeys = modelsRequested;
+                    if (currentFile && imagePreview.src && imagePreview.src.startsWith('data:')) {
+                        session.imageDataUrl = imagePreview.src;
+                        session.imageFileName = currentFile.name;
+                    }
+                }
+            }
+
         } catch (err) {
-            resultCards.innerHTML += `
-                <div class="result-card error">
-                    <div class="result-card-header">
-                        <div class="result-model-name"><i class="fa-solid fa-triangle-exclamation" style="color:var(--red)"></i> Bağlantı Hatası</div>
+            const errCard = document.createElement('div');
+            errCard.className = 'result-card error';
+            errCard.innerHTML = `
+                <div class="result-card-header">
+                    <div class="result-model-name">
+                        <i class="fa-solid fa-triangle-exclamation icon-error"></i> Bağlantı Hatası
                     </div>
-                    <div class="result-body"><div class="result-caption">${err.message}</div></div>
-                </div>`;
+                </div>
+                <div class="result-body"><div class="result-caption">${err.message}</div></div>`;
+            block.appendChild(errCard);
         } finally {
             isComparing = false;
             compareBtn.querySelector('span').textContent = 'Karşılaştır';
@@ -343,92 +624,90 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     }
 
-    function handleSSE(data) {
-        if (data.type === 'loading') {
-            progressText.textContent = `Yükleniyor: ${data.model_name}`;
-            progressCount.textContent = `${data.index + 1} / ${data.total}`;
+    function resultCardEl(block, index) {
+        return block.querySelector(`.result-card[data-result-index="${index}"]`);
+    }
 
+    // ─── SSE Handler ────────────────────────────────────────
+    function handleSSE(data, block, cardMap) {
+
+        if (data.type === 'loading') {
             const card = document.createElement('div');
             card.className = 'result-card loading';
-            card.id = `card-${data.index}`;
+            card.dataset.resultIndex = String(data.index);
             card.innerHTML = `
                 <div class="result-card-header">
                     <div class="result-model-name">
-                        <i class="fa-solid fa-brain" style="color:var(--blue)"></i>
+                        <i class="fa-solid fa-circle-notch fa-spin icon-loading" style="font-size:0.78rem"></i>
                         ${data.model_name}
                     </div>
                 </div>
-                <div class="result-body">
-                    <div class="pulse-dot"></div>
-                    Model yükleniyor ve çıktı üretiliyor...
-                </div>`;
-            resultCards.appendChild(card);
-            card.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+                ${skeletonHTML()}`;
+            block.appendChild(card);
+            conversationArea.scrollTop = conversationArea.scrollHeight;
+            cardMap[data.index] = { model_name: data.model_name, model_key: data.model_key };
 
         } else if (data.type === 'result') {
-            const pct = ((data.index + 1) / data.total * 100).toFixed(0);
-            progressFill.style.width = pct + '%';
-            progressText.textContent = `Tamamlandı: ${data.model_name}`;
-            progressCount.textContent = `${data.index + 1} / ${data.total}`;
+            const card = resultCardEl(block, data.index);
+            if (!card) return;
 
-            const card = document.getElementById(`card-${data.index}`);
-            if (card) {
-                card.className = 'result-card';
-                card.innerHTML = `
-                    <div class="result-card-header">
-                        <div class="result-model-name">
-                            <i class="fa-solid fa-check-circle" style="color:var(--green)"></i>
-                            ${data.model_name}
-                            <span class="model-badge">${data.model_key.split('/').pop()}</span>
-                        </div>
-                        <div class="result-times">
-                            <span><i class="fa-solid fa-download"></i> ${data.load_time}s</span>
-                            <span><i class="fa-solid fa-bolt"></i> ${data.infer_time}s</span>
-                        </div>
+            card.className = 'result-card';
+            card.innerHTML = `
+                <div class="result-card-header">
+                    <div class="result-model-name">
+                        <i class="fa-solid fa-check-circle icon-success" style="font-size:0.78rem"></i>
+                        ${data.model_name}
+                        <span class="model-badge">${data.model_key.split('/').pop()}</span>
                     </div>
-                    <div class="result-body">
-                        <div class="result-caption">${data.caption}</div>
-                    </div>`;
-            }
+                    <div class="result-times">
+                        <span class="t-load"><i class="fa-solid fa-download"></i> ${data.load_time}s</span>
+                        <span class="t-infer"><i class="fa-solid fa-bolt"></i> ${data.infer_time}s</span>
+                    </div>
+                </div>
+                <div class="result-body">
+                    <div class="result-caption"></div>
+                </div>`;
+
+            const captionEl = card.querySelector('.result-caption');
+            typewriterEffect(captionEl, data.caption, 400);
+
+            cardMap[data.index] = {
+                model_name: data.model_name,
+                model_key: data.model_key,
+                caption: data.caption,
+                load_time: data.load_time,
+                infer_time: data.infer_time
+            };
 
         } else if (data.type === 'error') {
-            const card = document.getElementById(`card-${data.index}`);
+            const card = resultCardEl(block, data.index);
             if (card) {
                 card.className = 'result-card error';
                 card.innerHTML = `
                     <div class="result-card-header">
                         <div class="result-model-name">
-                            <i class="fa-solid fa-triangle-exclamation" style="color:var(--red)"></i>
-                            ${data.model_name}
+                            <i class="fa-solid fa-triangle-exclamation icon-error"></i> ${data.model_name}
                         </div>
                     </div>
                     <div class="result-body"><div class="result-caption">${data.error}</div></div>`;
             }
-
-        } else if (data.type === 'done') {
-            progressText.textContent = 'Tüm modeller tamamlandı';
-            progressFill.style.width = '100%';
         }
     }
 
-    // ─── Add Model Toggle ───
-    document.getElementById('toggle-add-model').addEventListener('click', () => {
-        document.getElementById('add-model-body').classList.toggle('hidden');
-    });
-
-    document.getElementById('add-model-btn').addEventListener('click', async () => {
-        const name   = document.getElementById('custom-name').value.trim();
-        const path   = document.getElementById('custom-path').value.trim();
-        const family = document.getElementById('custom-family').value;
-        const status = document.getElementById('add-model-status');
+    // ─── Add Model ──────────────────────────────────────────
+    document.getElementById('vlm-add-model-btn').addEventListener('click', async () => {
+        const name   = document.getElementById('vlm-custom-name').value.trim();
+        const path   = document.getElementById('vlm-custom-path').value.trim();
+        const family = document.getElementById('vlm-custom-family').value;
+        const status = document.getElementById('vlm-add-model-status');
 
         if (!name || !path) {
             status.textContent = 'Lütfen isim ve yol girin.';
-            status.style.color = 'var(--yellow)';
+            status.style.color = 'var(--amber)';
             return;
         }
 
-        const btn = document.getElementById('add-model-btn');
+        const btn = document.getElementById('vlm-add-model-btn');
         btn.disabled = true;
         btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Ekleniyor...';
         status.textContent = '';
@@ -437,20 +716,20 @@ document.addEventListener('DOMContentLoaded', () => {
         fd.append('name', name); fd.append('path', path); fd.append('family', family);
 
         try {
-            const res = await fetch('/api/models/add', { method: 'POST', body: fd });
+            const res  = await fetch('/api/models/add', { method: 'POST', body: fd });
             const data = await res.json();
             if (data.status === 'success') {
                 status.textContent = 'Model eklendi!';
                 status.style.color = 'var(--green)';
-                document.getElementById('custom-name').value = '';
-                document.getElementById('custom-path').value = '';
+                document.getElementById('vlm-custom-name').value = '';
+                document.getElementById('vlm-custom-path').value = '';
                 await loadModels();
                 await refreshModelsFlat();
             } else {
                 status.textContent = 'Hata: ' + data.message;
                 status.style.color = 'var(--red)';
             }
-        } catch (e) {
+        } catch (_) {
             status.textContent = 'Bağlantı hatası.';
             status.style.color = 'var(--red)';
         } finally {
@@ -459,25 +738,21 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     });
 
-    // ─── Add Family Toggle ───
-    document.getElementById('toggle-add-family').addEventListener('click', () => {
-        document.getElementById('add-family-body').classList.toggle('hidden');
-    });
-
-    document.getElementById('add-family-btn').addEventListener('click', async () => {
-        const name     = document.getElementById('family-name').value.trim();
-        const desc     = document.getElementById('family-description').value.trim();
-        const strategy = document.getElementById('family-strategy').value;
-        const reqs     = document.getElementById('family-requirements').value.trim();
-        const status   = document.getElementById('add-family-status');
+    // ─── Add Family ─────────────────────────────────────────
+    document.getElementById('vlm-add-family-btn').addEventListener('click', async () => {
+        const name     = document.getElementById('vlm-family-name').value.trim();
+        const desc     = document.getElementById('vlm-family-description').value.trim();
+        const strategy = document.getElementById('vlm-family-strategy').value;
+        const reqs     = document.getElementById('vlm-family-requirements').value.trim();
+        const status   = document.getElementById('vlm-add-family-status');
 
         if (!name) {
             status.textContent = 'Lütfen aile adı girin.';
-            status.style.color = 'var(--yellow)';
+            status.style.color = 'var(--amber)';
             return;
         }
 
-        const btn = document.getElementById('add-family-btn');
+        const btn = document.getElementById('vlm-add-family-btn');
         btn.disabled = true;
         btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Kaydediliyor...';
 
@@ -486,20 +761,20 @@ document.addEventListener('DOMContentLoaded', () => {
         fd.append('strategy', strategy); fd.append('requirements', reqs);
 
         try {
-            const res = await fetch('/api/families/add', { method: 'POST', body: fd });
+            const res  = await fetch('/api/families/add', { method: 'POST', body: fd });
             const data = await res.json();
             if (data.status === 'success') {
                 status.textContent = `"${name}" eklendi!`;
                 status.style.color = 'var(--green)';
-                document.getElementById('family-name').value = '';
-                document.getElementById('family-description').value = '';
-                document.getElementById('family-requirements').value = '';
+                document.getElementById('vlm-family-name').value = '';
+                document.getElementById('vlm-family-description').value = '';
+                document.getElementById('vlm-family-requirements').value = '';
                 await loadFamilies();
             } else {
                 status.textContent = 'Hata: ' + data.message;
                 status.style.color = 'var(--red)';
             }
-        } catch (e) {
+        } catch (_) {
             status.textContent = 'Bağlantı hatası.';
             status.style.color = 'var(--red)';
         } finally {
@@ -508,8 +783,11 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     });
 
-    // ─── Keyboard shortcuts ───
+    // ─── Keyboard shortcuts ─────────────────────────────────
     document.addEventListener('keydown', e => {
-        if (e.key === 'Escape') closeModal();
+        if (e.key === 'Escape') {
+            closeModal();
+            settingsModal.classList.add('hidden');
+        }
     });
 });
