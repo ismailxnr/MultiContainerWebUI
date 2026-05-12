@@ -1,4 +1,50 @@
 document.addEventListener('DOMContentLoaded', () => {
+
+    // ─── Toast notifications ───
+    function showToast(msg, type = '', duration = 2400) {
+        const container = document.getElementById('toast-container');
+        const el = document.createElement('div');
+        el.className = 'toast' + (type ? ' ' + type : '');
+        const icons = { success: 'fa-check', error: 'fa-triangle-exclamation', '': 'fa-circle-info' };
+        el.innerHTML = `<i class="fa-solid ${icons[type] || icons['']}"></i>${msg}`;
+        container.appendChild(el);
+        setTimeout(() => {
+            el.style.animation = 'toast-out 0.28s ease forwards';
+            setTimeout(() => el.remove(), 300);
+        }, duration);
+    }
+
+    // ─── Copy to clipboard ───
+    function copyToClipboard(text, btn) {
+        navigator.clipboard.writeText(text).then(() => {
+            showToast('Panoya kopyalandı', 'success');
+            if (btn) {
+                const orig = btn.innerHTML;
+                btn.innerHTML = '<i class="fa-solid fa-check"></i> Kopyalandı';
+                btn.classList.add('copied');
+                setTimeout(() => { btn.innerHTML = orig; btn.classList.remove('copied'); }, 2000);
+            }
+        }).catch(() => showToast('Kopyalama başarısız', 'error'));
+    }
+
+    // ─── Typewriter text reveal ───
+    function typewriterReveal(el, text) {
+        const tokens = text.split(/(\s+)/);
+        const delay = Math.max(8, Math.min(38, 1600 / tokens.length));
+        let i = 0;
+        el.textContent = '';
+        el.classList.add('typing-active');
+        function step() {
+            if (i < tokens.length) {
+                el.textContent += tokens[i++];
+                setTimeout(step, delay);
+            } else {
+                el.classList.remove('typing-active');
+            }
+        }
+        setTimeout(step, 60);
+    }
+
     // ─── Elements ───
     const dropZone        = document.getElementById('drop-zone');
     const fileInput       = document.getElementById('file-input');
@@ -15,10 +61,16 @@ document.addEventListener('DOMContentLoaded', () => {
     const progressFill    = document.getElementById('progress-fill');
     const resultCards     = document.getElementById('result-cards');
 
-    let currentFile   = null;
+    let currentFile    = null;
     let selectedModels = new Set();
-    let isComparing   = false;
-    let familiesCache = {};
+    let isComparing    = false;
+    let familiesCache  = {};
+
+    // pending data for history capture
+    let pendingResults       = [];
+    let pendingImageDataUrl  = null;
+    let pendingPrompt        = '';
+    let activeHistoryId      = null;
 
     // ─── Families ───
     async function loadFamilies() {
@@ -295,9 +347,14 @@ document.addEventListener('DOMContentLoaded', () => {
         if (!currentFile || selectedModels.size === 0 || isComparing) return;
 
         isComparing = true;
+        activeHistoryId = null;
+        pendingResults = [];
+        pendingImageDataUrl = imagePreview.src || null;
+        pendingPrompt = promptInput.value.trim();
         compareBtn.disabled = true;
         compareBtn.querySelector('span').textContent = 'İşleniyor...';
         compareBtn.querySelector('i').className = 'fa-solid fa-spinner fa-spin';
+        document.querySelectorAll('.history-item').forEach(el => el.classList.remove('active'));
 
         resultsEmpty.classList.add('hidden');
         progressWrap.classList.remove('hidden');
@@ -351,16 +408,19 @@ document.addEventListener('DOMContentLoaded', () => {
             const card = document.createElement('div');
             card.className = 'result-card loading';
             card.id = `card-${data.index}`;
+            card.style.animationDelay = `${data.index * 0.06}s`;
             card.innerHTML = `
                 <div class="result-card-header">
                     <div class="result-model-name">
-                        <i class="fa-solid fa-brain" style="color:var(--blue)"></i>
+                        <div class="model-status-dot loading"></div>
                         ${data.model_name}
                     </div>
                 </div>
                 <div class="result-body">
-                    <div class="pulse-dot"></div>
-                    Model yükleniyor ve çıktı üretiliyor...
+                    <div class="typing-indicator">
+                        <div class="typing-dots"><span></span><span></span><span></span></div>
+                        <span class="typing-label">Model yükleniyor ve çıktı üretiliyor...</span>
+                    </div>
                 </div>`;
             resultCards.appendChild(card);
             card.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
@@ -373,23 +433,37 @@ document.addEventListener('DOMContentLoaded', () => {
 
             const card = document.getElementById(`card-${data.index}`);
             if (card) {
-                card.className = 'result-card';
+                const wordCount = data.caption.trim().split(/\s+/).filter(Boolean).length;
+                card.className = 'result-card success';
                 card.innerHTML = `
                     <div class="result-card-header">
                         <div class="result-model-name">
-                            <i class="fa-solid fa-check-circle" style="color:var(--green)"></i>
+                            <div class="model-status-dot done"></div>
                             ${data.model_name}
                             <span class="model-badge">${data.model_key.split('/').pop()}</span>
                         </div>
-                        <div class="result-times">
-                            <span><i class="fa-solid fa-download"></i> ${data.load_time}s</span>
-                            <span><i class="fa-solid fa-bolt"></i> ${data.infer_time}s</span>
+                        <div class="result-meta-right">
+                            <span class="word-count-badge">${wordCount} kelime</span>
+                            <div class="result-times">
+                                <span><i class="fa-solid fa-download"></i> ${data.load_time}s</span>
+                                <span><i class="fa-solid fa-bolt"></i> ${data.infer_time}s</span>
+                            </div>
                         </div>
                     </div>
                     <div class="result-body">
-                        <div class="result-caption">${data.caption}</div>
+                        <div class="result-caption"></div>
+                        <div class="result-actions">
+                            <button class="copy-btn" title="Metni kopyala">
+                                <i class="fa-regular fa-copy"></i> Kopyala
+                            </button>
+                        </div>
                     </div>`;
+                typewriterReveal(card.querySelector('.result-caption'), data.caption);
+                card.querySelector('.copy-btn').addEventListener('click', function () {
+                    copyToClipboard(data.caption, this);
+                });
             }
+            pendingResults.push({ type: 'result', index: data.index, model_key: data.model_key, model_name: data.model_name, caption: data.caption, load_time: data.load_time, infer_time: data.infer_time });
 
         } else if (data.type === 'error') {
             const card = document.getElementById(`card-${data.index}`);
@@ -398,22 +472,40 @@ document.addEventListener('DOMContentLoaded', () => {
                 card.innerHTML = `
                     <div class="result-card-header">
                         <div class="result-model-name">
-                            <i class="fa-solid fa-triangle-exclamation" style="color:var(--red)"></i>
+                            <div class="model-status-dot error"></div>
                             ${data.model_name}
                         </div>
                     </div>
                     <div class="result-body"><div class="result-caption">${data.error}</div></div>`;
             }
+            pendingResults.push({ type: 'error', index: data.index, model_key: data.model_key || '', model_name: data.model_name, error: data.error });
 
         } else if (data.type === 'done') {
             progressText.textContent = 'Tüm modeller tamamlandı';
             progressFill.style.width = '100%';
+            if (pendingImageDataUrl && pendingResults.length > 0) {
+                createThumbnail(pendingImageDataUrl).then(thumb => {
+                    const id = Date.now().toString(36) + Math.random().toString(36).slice(2);
+                    addToHistory({
+                        id,
+                        timestamp: Date.now(),
+                        imageDataUrl: thumb,
+                        models: Array.from(selectedModels),
+                        modelNames: pendingResults.map(r => r.model_name).filter(Boolean),
+                        prompt: pendingPrompt,
+                        results: pendingResults.slice()
+                    });
+                    activeHistoryId = id;
+                    document.querySelectorAll('.history-item').forEach(el =>
+                        el.classList.toggle('active', el.dataset.id === id));
+                });
+            }
         }
     }
 
     // ─── Add Model Toggle ───
     document.getElementById('toggle-add-model').addEventListener('click', () => {
-        document.getElementById('add-model-body').classList.toggle('hidden');
+        document.getElementById('add-model-body').classList.toggle('open');
     });
 
     document.getElementById('add-model-btn').addEventListener('click', async () => {
@@ -461,7 +553,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // ─── Add Family Toggle ───
     document.getElementById('toggle-add-family').addEventListener('click', () => {
-        document.getElementById('add-family-body').classList.toggle('hidden');
+        document.getElementById('add-family-body').classList.toggle('open');
     });
 
     document.getElementById('add-family-btn').addEventListener('click', async () => {
@@ -511,5 +603,386 @@ document.addEventListener('DOMContentLoaded', () => {
     // ─── Keyboard shortcuts ───
     document.addEventListener('keydown', e => {
         if (e.key === 'Escape') closeModal();
+        if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') {
+            e.preventDefault();
+            if (!compareBtn.disabled) compareBtn.click();
+            else if (!landingCompareBtn.disabled) landingCompareBtn.click();
+        }
     });
+
+    // ─── Typewriter Effect ───
+    const twPhrases = [
+        'modelleri karşılaştır',
+        'görselleri analiz et',
+        'en iyi modeli bul'
+    ];
+    const twTarget = document.getElementById('typewriter-text');
+    let twPhrase = 0, twChar = 0, twDeleting = false;
+
+    function typeStep() {
+        const phrase = twPhrases[twPhrase];
+        if (!twDeleting) {
+            twTarget.textContent = phrase.slice(0, ++twChar);
+            if (twChar === phrase.length) { twDeleting = true; setTimeout(typeStep, 1800); return; }
+            setTimeout(typeStep, 75 + Math.random() * 35);
+        } else {
+            twTarget.textContent = phrase.slice(0, --twChar);
+            if (twChar === 0) {
+                twDeleting = false;
+                twPhrase = (twPhrase + 1) % twPhrases.length;
+                setTimeout(typeStep, 380);
+                return;
+            }
+            setTimeout(typeStep, 38 + Math.random() * 20);
+        }
+    }
+    setTimeout(typeStep, 600);
+
+    // ─── Landing Screen ───
+    const landingScreen      = document.getElementById('landing-screen');
+    const landingDrop        = document.getElementById('landing-drop-zone');
+    const landingInput       = document.getElementById('landing-file-input');
+    const landingUploadInner = document.getElementById('landing-upload-inner');
+    const landingPreview     = document.getElementById('landing-preview');
+    const landingRemoveImg   = document.getElementById('landing-remove-img');
+    const landingChips       = document.getElementById('landing-model-chips');
+    const landingPrompt      = document.getElementById('landing-prompt');
+    const landingCompareBtn  = document.getElementById('landing-compare-btn');
+    const appShell           = document.getElementById('app-shell');
+
+    function updateLandingCompareBtn() {
+        landingCompareBtn.disabled = !(currentFile && selectedModels.size > 0);
+    }
+
+    function setLandingFile(file) {
+        handleFiles([file]);
+        const reader = new FileReader();
+        reader.readAsDataURL(file);
+        reader.onloadend = () => {
+            landingPreview.src = reader.result;
+            landingUploadInner.classList.add('hidden');
+            landingPreview.classList.remove('hidden');
+            landingRemoveImg.classList.remove('hidden');
+            updateLandingCompareBtn();
+        };
+    }
+
+    function clearLandingFile() {
+        currentFile = null;
+        fileInput.value = '';
+        landingInput.value = '';
+        landingPreview.src = '';
+        landingUploadInner.classList.remove('hidden');
+        landingPreview.classList.add('hidden');
+        landingRemoveImg.classList.add('hidden');
+        imagePreview.src = '';
+        uploadPH.classList.remove('hidden');
+        imagePreview.classList.add('hidden');
+        removeImageBtn.classList.add('hidden');
+        updateLandingCompareBtn();
+        updateCompareBtn();
+    }
+
+    function exitLanding() {
+        landingScreen.classList.add('exit');
+        appShell.classList.add('visible');
+        setTimeout(() => { landingScreen.style.display = 'none'; }, 480);
+    }
+
+    function showLanding() {
+        landingScreen.style.display = '';
+        requestAnimationFrame(() => {
+            landingScreen.classList.remove('exit');
+            appShell.classList.remove('visible');
+        });
+        clearLandingFile();
+        selectedModels.clear();
+        document.querySelectorAll('.landing-chip').forEach(c => c.classList.remove('selected'));
+        document.querySelectorAll('.model-row').forEach(r => { r.classList.remove('selected'); r.querySelector('input').checked = false; });
+        landingPrompt.value = '';
+        promptInput.value = '';
+        resultCards.innerHTML = '';
+        resultsEmpty.classList.remove('hidden');
+        progressWrap.classList.add('hidden');
+        activeHistoryId = null;
+        document.querySelectorAll('.history-item').forEach(el => el.classList.remove('active'));
+        updateCompareBtn();
+    }
+
+    async function loadLandingModels() {
+        try {
+            const res = await fetch('/api/models');
+            const grouped = await res.json();
+            landingChips.innerHTML = '';
+            if (!Object.keys(grouped).length) {
+                landingChips.innerHTML = '<span class="landing-no-models">Henüz model eklenmemiş.</span>';
+                return;
+            }
+            for (const [, models] of Object.entries(grouped)) {
+                models.forEach(m => {
+                    const chip = document.createElement('div');
+                    chip.className = 'landing-chip';
+                    chip.dataset.key = m.key;
+                    chip.innerHTML = `<span class="chip-check"><i class="fa-solid fa-check"></i></span>${m.name}`;
+                    chip.addEventListener('click', () => {
+                        const active = chip.classList.toggle('selected');
+                        if (active) selectedModels.add(m.key);
+                        else        selectedModels.delete(m.key);
+                        const cb = document.querySelector(`input[value="${m.key}"]`);
+                        if (cb) { cb.checked = active; cb.closest('.model-row').classList.toggle('selected', active); }
+                        updateLandingCompareBtn();
+                        updateCompareBtn();
+                    });
+                    landingChips.appendChild(chip);
+                });
+            }
+        } catch(e) {
+            landingChips.innerHTML = '<span class="landing-no-models">Modeller yüklenemedi.</span>';
+        }
+    }
+    loadLandingModels();
+
+    ['dragenter', 'dragover', 'dragleave', 'drop'].forEach(ev =>
+        landingDrop.addEventListener(ev, e => { e.preventDefault(); e.stopPropagation(); }));
+    ['dragenter', 'dragover'].forEach(ev =>
+        landingDrop.addEventListener(ev, () => landingDrop.classList.add('dragover')));
+    ['dragleave', 'drop'].forEach(ev =>
+        landingDrop.addEventListener(ev, () => landingDrop.classList.remove('dragover')));
+    landingDrop.addEventListener('drop', e => { const f = e.dataTransfer.files; if (f.length > 0) setLandingFile(f[0]); });
+    landingDrop.addEventListener('click', () => { if (!currentFile) landingInput.click(); });
+    landingInput.addEventListener('change', function () { if (this.files.length > 0) setLandingFile(this.files[0]); });
+    landingRemoveImg.addEventListener('click', e => { e.stopPropagation(); clearLandingFile(); });
+
+    landingCompareBtn.addEventListener('click', () => {
+        if (!currentFile || selectedModels.size === 0) return;
+        promptInput.value = landingPrompt.value.trim();
+        exitLanding();
+        setTimeout(() => runComparison(), 180);
+    });
+
+    // ─── History Management ───
+    const HISTORY_KEY = 'vlm-studio-history';
+    const MAX_HISTORY = 60;
+
+    const histSidebar    = document.getElementById('history-sidebar');
+    const histList       = document.getElementById('history-list');
+    const histSearch     = document.getElementById('history-search');
+    const histCollapseBtn = document.getElementById('history-collapse-btn');
+    const histExpandBtn  = document.getElementById('history-expand-btn');
+    const histNewBtn     = document.getElementById('history-new-btn');
+    const histClearBtn   = document.getElementById('history-clear-btn');
+
+    function getHistory() {
+        try { return JSON.parse(localStorage.getItem(HISTORY_KEY) || '[]'); }
+        catch { return []; }
+    }
+
+    function saveHistoryStore(items) {
+        try { localStorage.setItem(HISTORY_KEY, JSON.stringify(items)); }
+        catch(e) {
+            // If quota exceeded, trim oldest half
+            const half = items.slice(0, Math.floor(items.length / 2));
+            try { localStorage.setItem(HISTORY_KEY, JSON.stringify(half)); } catch(_) {}
+        }
+    }
+
+    function addToHistory(item) {
+        const history = getHistory();
+        history.unshift(item);
+        if (history.length > MAX_HISTORY) history.length = MAX_HISTORY;
+        saveHistoryStore(history);
+        renderHistory(histSearch.value.trim().toLowerCase());
+    }
+
+    function deleteHistoryItem(id) {
+        const history = getHistory().filter(h => h.id !== id);
+        saveHistoryStore(history);
+        if (activeHistoryId === id) {
+            activeHistoryId = null;
+            resultCards.innerHTML = '';
+            resultsEmpty.classList.remove('hidden');
+            document.getElementById('page-title').textContent = 'Sonuçlar';
+            document.getElementById('page-sub').textContent = 'Modellerin çıktıları burada görünecek';
+        }
+        renderHistory(histSearch.value.trim().toLowerCase());
+    }
+
+    function getDateLabel(ts) {
+        const now = new Date(), d = new Date(ts);
+        const diff = now - d;
+        const DAY = 86400000;
+        if (diff < DAY && d.getDate() === now.getDate()) return 'Bugün';
+        if (diff < 2 * DAY) return 'Dün';
+        if (diff < 7 * DAY) return 'Bu Hafta';
+        if (diff < 30 * DAY) return 'Bu Ay';
+        return 'Daha Önce';
+    }
+
+    function formatRelTime(ts) {
+        const diff = Date.now() - ts;
+        const m = Math.floor(diff / 60000);
+        if (m < 1) return 'Az önce';
+        if (m < 60) return `${m} dk önce`;
+        const h = Math.floor(m / 60);
+        if (h < 24) return `${h} sa önce`;
+        const day = Math.floor(h / 24);
+        return `${day} gün önce`;
+    }
+
+    function buildResultCard(result, index) {
+        const card = document.createElement('div');
+        card.style.animationDelay = `${index * 0.05}s`;
+        if (result.type === 'error') {
+            card.className = 'result-card error';
+            card.innerHTML = `
+                <div class="result-card-header">
+                    <div class="result-model-name"><div class="model-status-dot error"></div>${result.model_name}</div>
+                </div>
+                <div class="result-body"><div class="result-caption">${result.error}</div></div>`;
+        } else {
+            const wordCount = (result.caption || '').trim().split(/\s+/).filter(Boolean).length;
+            card.className = 'result-card success';
+            card.innerHTML = `
+                <div class="result-card-header">
+                    <div class="result-model-name">
+                        <div class="model-status-dot done"></div>
+                        ${result.model_name}
+                        <span class="model-badge">${(result.model_key || '').split('/').pop()}</span>
+                    </div>
+                    <div class="result-meta-right">
+                        <span class="word-count-badge">${wordCount} kelime</span>
+                        <div class="result-times">
+                            <span><i class="fa-solid fa-download"></i> ${result.load_time}s</span>
+                            <span><i class="fa-solid fa-bolt"></i> ${result.infer_time}s</span>
+                        </div>
+                    </div>
+                </div>
+                <div class="result-body">
+                    <div class="result-caption">${result.caption}</div>
+                    <div class="result-actions">
+                        <button class="copy-btn" title="Metni kopyala">
+                            <i class="fa-regular fa-copy"></i> Kopyala
+                        </button>
+                    </div>
+                </div>`;
+            card.querySelector('.copy-btn').addEventListener('click', function () {
+                copyToClipboard(result.caption, this);
+            });
+        }
+        return card;
+    }
+
+    function loadHistoryItem(item) {
+        exitLanding();
+        activeHistoryId = item.id;
+        document.querySelectorAll('.history-item').forEach(el =>
+            el.classList.toggle('active', el.dataset.id === item.id));
+
+        imagePreview.src = item.imageDataUrl;
+        uploadPH.classList.add('hidden');
+        imagePreview.classList.remove('hidden');
+        removeImageBtn.classList.remove('hidden');
+        promptInput.value = item.prompt || '';
+
+        const title = item.prompt || item.modelNames?.join(', ') || 'Karşılaştırma';
+        document.getElementById('page-title').textContent = title.length > 60 ? title.slice(0, 60) + '…' : title;
+        document.getElementById('page-sub').textContent =
+            `${item.modelNames?.length || item.models?.length || 0} model · ${formatRelTime(item.timestamp)}`;
+
+        progressWrap.classList.add('hidden');
+        resultsEmpty.classList.add('hidden');
+        resultCards.innerHTML = '';
+        item.results.forEach((r, i) => resultCards.appendChild(buildResultCard(r, i)));
+    }
+
+    function renderHistoryItem(item) {
+        const el = document.createElement('div');
+        el.className = 'history-item' + (item.id === activeHistoryId ? ' active' : '');
+        el.dataset.id = item.id;
+        const title = item.prompt || item.modelNames?.join(', ') || 'Karşılaştırma';
+        const meta  = `${item.modelNames?.length || item.models?.length || 0} model · ${formatRelTime(item.timestamp)}`;
+        el.innerHTML = `
+            <div class="history-thumb"><img src="${item.imageDataUrl}" alt=""></div>
+            <div class="history-item-info">
+                <div class="history-item-title">${title}</div>
+                <div class="history-item-meta">${meta}</div>
+            </div>
+            <button class="history-item-del" title="Sil"><i class="fa-solid fa-trash"></i></button>`;
+        el.addEventListener('click', e => {
+            if (e.target.closest('.history-item-del')) return;
+            loadHistoryItem(item);
+        });
+        el.querySelector('.history-item-del').addEventListener('click', e => {
+            e.stopPropagation();
+            deleteHistoryItem(item.id);
+        });
+        return el;
+    }
+
+    function renderHistory(query = '') {
+        const all = getHistory();
+        const items = query
+            ? all.filter(h => (h.prompt || '').toLowerCase().includes(query) ||
+                              (h.modelNames || []).some(n => n.toLowerCase().includes(query)))
+            : all;
+
+        histList.innerHTML = '';
+        if (!items.length) {
+            histList.innerHTML = `<div class="history-empty-state">
+                <i class="fa-regular fa-clock"></i>
+                <span>${query ? 'Eşleşme bulunamadı' : 'Henüz karşılaştırma yok'}</span>
+            </div>`;
+            return;
+        }
+        const groups = {};
+        items.forEach(h => {
+            const label = getDateLabel(h.timestamp);
+            if (!groups[label]) groups[label] = [];
+            groups[label].push(h);
+        });
+        const ORDER = ['Bugün', 'Dün', 'Bu Hafta', 'Bu Ay', 'Daha Önce'];
+        ORDER.filter(k => groups[k]).forEach(label => {
+            const g = document.createElement('div');
+            g.innerHTML = `<div class="history-group-label">${label}</div>`;
+            groups[label].forEach(h => g.appendChild(renderHistoryItem(h)));
+            histList.appendChild(g);
+        });
+    }
+
+    function createThumbnail(dataUrl, maxSize = 160) {
+        return new Promise(resolve => {
+            const img = new Image();
+            img.onload = () => {
+                const ratio = Math.min(maxSize / img.width, maxSize / img.height, 1);
+                const c = document.createElement('canvas');
+                c.width = Math.round(img.width * ratio);
+                c.height = Math.round(img.height * ratio);
+                c.getContext('2d').drawImage(img, 0, 0, c.width, c.height);
+                resolve(c.toDataURL('image/jpeg', 0.75));
+            };
+            img.onerror = () => resolve(dataUrl);
+            img.src = dataUrl;
+        });
+    }
+
+    // History sidebar toggle
+    histCollapseBtn.addEventListener('click', () => histSidebar.classList.add('collapsed'));
+    histExpandBtn.addEventListener('click',   () => histSidebar.classList.remove('collapsed'));
+
+    histNewBtn.addEventListener('click', showLanding);
+
+    histClearBtn.addEventListener('click', () => {
+        if (!confirm('Tüm geçmiş silinecek. Emin misiniz?')) return;
+        saveHistoryStore([]);
+        renderHistory();
+        activeHistoryId = null;
+        resultCards.innerHTML = '';
+        resultsEmpty.classList.remove('hidden');
+        document.getElementById('page-title').textContent = 'Sonuçlar';
+        document.getElementById('page-sub').textContent = 'Modellerin çıktıları burada görünecek';
+    });
+
+    histSearch.addEventListener('input', () => renderHistory(histSearch.value.trim().toLowerCase()));
+
+    renderHistory();
 });

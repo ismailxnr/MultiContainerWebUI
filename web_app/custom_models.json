@@ -1,27 +1,20 @@
 {
     "custom/qwen_1778433125": {
-        "name": "qwen",
+        "name": "QWEN3.5_9B_FT",
         "path": "/home/atp-user-14/sayzek_vlm/Project_Q/checkpoints/qwen35_9b_vlm_rsicd/checkpoint-2724/",
         "family": "qwenvl",
         "group": "Custom Models",
         "step": 999999
     },
     "custom/llava_1778433169": {
-        "name": "llava",
+        "name": "LLAVA_FT_CP_7500",
         "path": "/home/atp-user-14/sayzek_vlm/Project/output/llava16-tr-lora-v2/checkpoint-7500/",
         "family": "rsllava",
         "group": "Custom Models",
         "step": 999999
     },
-    "custom/llava-cp-4000_1778437346": {
-        "name": "llava-cp-4000",
-        "path": "/home/atp-user-14/sayzek_vlm/Project/output/llava16-tr-lora-v2/checkpoint-4000/",
-        "family": "rsllava",
-        "group": "Custom Models",
-        "step": 4000
-    },
     "custom/rsllava-8000_1778439169": {
-        "name": "rsllava-8000",
+        "name": "RSLLAVA_FT_CP_8000",
         "path": "/home/atp-user-14/sayzek_vlm/Project/output/llava16-tr-lora-v2/checkpoint-8000/",
         "family": "rsllava",
         "group": "Custom Models",

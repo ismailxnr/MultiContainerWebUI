@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>VLM Studio — Model Karşılaştırma</title>
+    <title>TR-VLM — Model Karşılaştırma</title>
     <link rel="stylesheet" href="style.css">
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
@@ -42,14 +42,116 @@
     </div>
 </div>
 
-<div class="app">
-    <!-- Sidebar -->
+<div class="bg-orbs" aria-hidden="true">
+    <div class="orb orb-1"></div>
+    <div class="orb orb-2"></div>
+    <div class="orb orb-3"></div>
+</div>
+
+<!-- Landing Screen -->
+<div class="landing-screen" id="landing-screen">
+    <div class="landing-inner">
+
+        <div class="landing-logo">
+            <img class="logo-icon" src="TR_VLM_Icon.png" alt="TR-VLM">
+            <span class="landing-logo-name">TR-VLM</span>
+        </div>
+
+        <h1 class="landing-title">Görsel yükle,<br><span id="typewriter-text"></span><span class="typewriter-cursor" id="typewriter-cursor"></span></h1>
+
+        <!-- Upload -->
+        <div class="landing-upload" id="landing-drop-zone">
+            <input type="file" id="landing-file-input" accept="image/*" hidden>
+            <div class="landing-upload-inner" id="landing-upload-inner">
+                <i class="fa-solid fa-cloud-arrow-up"></i>
+                <span>Görsel yükleyin</span>
+                <span class="landing-hint">Sürükleyip bırakın ya da tıklayın &nbsp;·&nbsp; PNG, JPG, WebP</span>
+            </div>
+            <img id="landing-preview" class="landing-preview-img hidden" alt="">
+            <button id="landing-remove-img" class="remove-img-btn hidden" title="Değiştir">
+                <i class="fa-solid fa-xmark"></i>
+            </button>
+        </div>
+
+        <!-- Model selection -->
+        <div class="landing-section">
+            <div class="landing-section-label">
+                <i class="fa-solid fa-layer-group"></i> Model Seç
+            </div>
+            <div class="landing-chips" id="landing-model-chips">
+                <div class="landing-loading"><div class="spinner"></div> Yükleniyor...</div>
+            </div>
+        </div>
+
+        <!-- Optional prompt -->
+        <div class="landing-section">
+            <div class="landing-section-label">
+                <i class="fa-solid fa-comment-dots"></i> Sorgu
+                <span class="label-opt">isteğe bağlı</span>
+            </div>
+            <textarea id="landing-prompt" class="landing-textarea" placeholder="Görüntü hakkında soru sorun..." rows="2"></textarea>
+        </div>
+
+        <!-- Compare -->
+        <button class="btn-compare landing-compare-btn" id="landing-compare-btn" disabled>
+            <i class="fa-solid fa-code-compare"></i>
+            <span>Karşılaştır</span>
+            <kbd class="kbd-hint">Ctrl ↵</kbd>
+        </button>
+
+    </div>
+</div>
+
+<div class="app" id="app-shell">
+
+    <!-- ── History Sidebar ── -->
+    <aside class="history-sidebar" id="history-sidebar">
+        <div class="history-header">
+            <div class="history-logo">
+                <img class="logo-icon" src="TR_VLM_Icon.png" alt="TR-VLM">
+                <span class="history-app-name">TR-VLM</span>
+            </div>
+            <div class="history-header-actions">
+                <button class="icon-btn" id="history-new-btn" title="Yeni Karşılaştırma">
+                    <i class="fa-solid fa-pen-to-square"></i>
+                </button>
+                <button class="icon-btn" id="history-collapse-btn" title="Geçmişi Kapat">
+                    <i class="fa-solid fa-chevron-left"></i>
+                </button>
+            </div>
+        </div>
+
+        <div class="history-search-wrap">
+            <div class="history-search-box">
+                <i class="fa-solid fa-magnifying-glass"></i>
+                <input type="text" id="history-search" placeholder="Geçmişte ara...">
+            </div>
+        </div>
+
+        <div class="history-list" id="history-list">
+            <div class="history-empty-state">
+                <i class="fa-regular fa-clock"></i>
+                <span>Henüz karşılaştırma yok</span>
+            </div>
+        </div>
+
+        <div class="history-footer">
+            <button class="history-clear-btn" id="history-clear-btn">
+                <i class="fa-solid fa-trash"></i> Geçmişi Temizle
+            </button>
+        </div>
+    </aside>
+
+    <!-- ── Controls Sidebar ── -->
     <aside class="sidebar">
         <div class="sidebar-header">
+            <button class="icon-btn" id="history-expand-btn" title="Geçmişi Aç">
+                <i class="fa-solid fa-clock-rotate-left"></i>
+            </button>
             <div class="logo">
-                <div class="logo-icon"><i class="fa-solid fa-eye"></i></div>
+                <img class="logo-icon" src="TR_VLM_Icon.png" alt="TR-VLM">
                 <div>
-                    <div class="logo-title">VLM Studio</div>
+                    <div class="logo-title">TR-VLM</div>
                     <div class="logo-sub">Model Karşılaştırma</div>
                 </div>
             </div>
@@ -86,7 +188,7 @@
             </div>
 
             <!-- Add Model Panel -->
-            <div class="collapsible hidden" id="add-model-body">
+            <div class="collapsible" id="add-model-body">
                 <div class="inset-card">
                     <div class="form-group">
                         <label>İsim</label>
@@ -121,7 +223,7 @@
                 </button>
             </div>
 
-            <div class="collapsible hidden" id="add-family-body">
+            <div class="collapsible" id="add-family-body">
                 <div class="inset-card">
                     <p class="hint" style="margin-bottom:0.8rem"><i class="fa-solid fa-circle-info"></i> Yeni mimari tanımlayın. Pip gereksinimleri ilk yüklemede otomatik kurulur.</p>
                     <div class="form-group">
@@ -161,17 +263,18 @@
             <button id="compare-btn" class="btn-compare" disabled>
                 <i class="fa-solid fa-code-compare"></i>
                 <span>Karşılaştır</span>
+                <kbd class="kbd-hint">Ctrl ↵</kbd>
             </button>
             <p class="auto-hint"><i class="fa-solid fa-microchip"></i> Modeller sırayla yüklenerek VRAM tasarrufu sağlanır</p>
         </div>
     </aside>
 
-    <!-- Main Content -->
+    <!-- ── Main Content ── -->
     <main class="main">
         <div class="main-header">
-            <div>
-                <h1 class="page-title">Sonuçlar</h1>
-                <p class="page-sub">Modellerin çıktıları burada görünecek</p>
+            <div class="main-header-left">
+                <h1 class="page-title" id="page-title">Sonuçlar</h1>
+                <p class="page-sub" id="page-sub">Modellerin çıktıları burada görünecek</p>
             </div>
         </div>
 
@@ -191,13 +294,17 @@
 
         <!-- Empty state -->
         <div class="empty-state" id="results-empty">
-            <div class="empty-icon"><i class="fa-solid fa-flask"></i></div>
-            <h3>Henüz karşılaştırma yapılmadı</h3>
-            <p>Sol panelden bir resim ve model seçip Karşılaştır düğmesine basın.</p>
+            <div class="empty-icon-wrap">
+                <div class="empty-icon-glow"></div>
+                <div class="empty-icon"><i class="fa-solid fa-flask-vial"></i></div>
+            </div>
+            <h3>Karşılaştırmaya hazır</h3>
+            <p>Bir görsel yükleyin, modelleri seçin ve Karşılaştır düğmesine basın.</p>
         </div>
     </main>
 </div>
 
+<div class="toast-container" id="toast-container"></div>
 <script src="main.js"></script>
 </body>
 </html>

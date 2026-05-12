@@ -215,10 +215,9 @@ def generate(req: GenerateRequest):
         with torch.inference_mode():
             output_ids = model.generate(
                 **inputs,
-                max_new_tokens=512,
-                do_sample=True,
-                temperature=0.5,
-                top_p=0.9,
+                max_new_tokens=256,
+                do_sample=False,
+                repetition_penalty=1.1,
             )
 
         n_input = inputs["input_ids"].shape[1]
