@@ -1,0 +1,129 @@
+INFO:     Started server process [19721]
+INFO:     Waiting for application startup.
+INFO:     Application startup complete.
+INFO:     Uvicorn running on http://0.0.0.0:8000 (Press CTRL+C to quit)
+INFO:     127.0.0.1:51576 - "GET / HTTP/1.1" 200 OK
+INFO:     127.0.0.1:51576 - "GET /style.css HTTP/1.1" 200 OK
+INFO:     127.0.0.1:51590 - "GET /main.js HTTP/1.1" 200 OK
+INFO:     127.0.0.1:51590 - "GET /TR_VLM_Icon.png HTTP/1.1" 304 Not Modified
+INFO:     127.0.0.1:51590 - "GET /api/families HTTP/1.1" 200 OK
+INFO:     127.0.0.1:51576 - "GET /api/models HTTP/1.1" 200 OK
+INFO:     127.0.0.1:51592 - "GET /api/models HTTP/1.1" 200 OK
+INFO:     127.0.0.1:51596 - "GET /api/models HTTP/1.1" 200 OK
+INFO:     127.0.0.1:48250 - "POST /api/compare HTTP/1.1" 200 OK
+Loading custom/qwen_1778433125 via family 'qwenvl' ...
+Loading custom/llava_1778433169 via family 'rsllava' ...
+Loading custom/rsllava-8000_1778439169 via family 'rsllava' ...
+INFO:     127.0.0.1:57544 - "GET /api/families HTTP/1.1" 200 OK
+INFO:     127.0.0.1:36928 - "POST /api/compare HTTP/1.1" 200 OK
+Loading custom/qwen_1778433125 via family 'qwenvl' ...
+Loading custom/llava_1778433169 via family 'rsllava' ...
+Loading custom/rsllava-8000_1778439169 via family 'rsllava' ...
+INFO:     127.0.0.1:53770 - "GET / HTTP/1.1" 304 Not Modified
+INFO:     127.0.0.1:53770 - "GET /style.css HTTP/1.1" 200 OK
+INFO:     127.0.0.1:53784 - "GET /main.js HTTP/1.1" 200 OK
+INFO:     127.0.0.1:53784 - "GET /TR_VLM_Icon.png HTTP/1.1" 304 Not Modified
+INFO:     127.0.0.1:53784 - "GET /api/families HTTP/1.1" 200 OK
+INFO:     127.0.0.1:53798 - "GET /api/models HTTP/1.1" 200 OK
+INFO:     127.0.0.1:53784 - "GET /api/models HTTP/1.1" 200 OK
+INFO:     127.0.0.1:53770 - "GET /api/models HTTP/1.1" 200 OK
+INFO:     127.0.0.1:50706 - "POST /api/compare HTTP/1.1" 200 OK
+Loading custom/qwen_1778433125 via family 'qwenvl' ...
+Loading custom/llava_1778433169 via family 'rsllava' ...
+Loading custom/rsllava-8000_1778439169 via family 'rsllava' ...
+INFO:     127.0.0.1:50012 - "GET / HTTP/1.1" 200 OK
+INFO:     127.0.0.1:50012 - "GET /style.css HTTP/1.1" 200 OK
+INFO:     127.0.0.1:50018 - "GET /main.js HTTP/1.1" 304 Not Modified
+INFO:     127.0.0.1:50020 - "GET /api/families HTTP/1.1" 200 OK
+INFO:     127.0.0.1:50018 - "GET /api/models HTTP/1.1" 200 OK
+INFO:     127.0.0.1:50018 - "GET /api/models HTTP/1.1" 200 OK
+INFO:     127.0.0.1:50020 - "GET /api/models HTTP/1.1" 200 OK
+INFO:     127.0.0.1:33496 - "POST /api/compare HTTP/1.1" 200 OK
+Loading custom/qwen_1778433125 via family 'qwenvl' ...
+Loading custom/llava_1778433169 via family 'rsllava' ...
+Loading custom/rsllava-8000_1778439169 via family 'rsllava' ...
+INFO:     127.0.0.1:41304 - "GET / HTTP/1.1" 200 OK
+INFO:     127.0.0.1:41316 - "GET /main.js HTTP/1.1" 200 OK
+INFO:     127.0.0.1:41304 - "GET /style.css HTTP/1.1" 200 OK
+INFO:     127.0.0.1:41316 - "GET /api/families HTTP/1.1" 200 OK
+INFO:     127.0.0.1:41332 - "GET /api/models HTTP/1.1" 200 OK
+INFO:     127.0.0.1:41304 - "GET /api/models HTTP/1.1" 200 OK
+INFO:     127.0.0.1:41338 - "GET /api/models HTTP/1.1" 200 OK
+INFO:     127.0.0.1:41352 - "POST /api/compare HTTP/1.1" 200 OK
+Loading custom/qwen_1778433125 via family 'qwenvl' ...
+Loading custom/llava_1778433169 via family 'rsllava' ...
+Loading custom/rsllava-8000_1778439169 via family 'rsllava' ...
+INFO:     127.0.0.1:37276 - "GET / HTTP/1.1" 304 Not Modified
+INFO:     127.0.0.1:37276 - "GET /style.css HTTP/1.1" 304 Not Modified
+INFO:     127.0.0.1:37288 - "GET /main.js HTTP/1.1" 200 OK
+INFO:     127.0.0.1:37288 - "GET /api/families HTTP/1.1" 200 OK
+INFO:     127.0.0.1:37304 - "GET /api/models HTTP/1.1" 200 OK
+INFO:     127.0.0.1:37288 - "GET /api/models HTTP/1.1" 200 OK
+INFO:     127.0.0.1:37304 - "GET /api/models HTTP/1.1" 200 OK
+INFO:     127.0.0.1:49386 - "GET / HTTP/1.1" 200 OK
+INFO:     127.0.0.1:49386 - "GET /style.css HTTP/1.1" 304 Not Modified
+INFO:     127.0.0.1:49400 - "GET /main.js HTTP/1.1" 304 Not Modified
+INFO:     127.0.0.1:49410 - "GET /api/families HTTP/1.1" 200 OK
+INFO:     127.0.0.1:49400 - "GET /api/models HTTP/1.1" 200 OK
+INFO:     127.0.0.1:49400 - "GET /api/models HTTP/1.1" 200 OK
+INFO:     127.0.0.1:49400 - "GET /api/models HTTP/1.1" 200 OK
+INFO:     127.0.0.1:41870 - "GET / HTTP/1.1" 304 Not Modified
+INFO:     127.0.0.1:41870 - "GET /style.css HTTP/1.1" 200 OK
+INFO:     127.0.0.1:41876 - "GET /main.js HTTP/1.1" 304 Not Modified
+INFO:     127.0.0.1:41880 - "GET /api/families HTTP/1.1" 200 OK
+INFO:     127.0.0.1:41876 - "GET /api/models HTTP/1.1" 200 OK
+INFO:     127.0.0.1:41870 - "GET /api/models HTTP/1.1" 200 OK
+INFO:     127.0.0.1:41880 - "GET /api/models HTTP/1.1" 200 OK
+INFO:     127.0.0.1:52462 - "POST /api/compare HTTP/1.1" 200 OK
+Loading custom/qwen_1778433125 via family 'qwenvl' ...
+Loading custom/llava_1778433169 via family 'rsllava' ...
+Loading custom/rsllava-8000_1778439169 via family 'rsllava' ...
+INFO:     127.0.0.1:60082 - "POST /api/compare HTTP/1.1" 200 OK
+Loading custom/qwen_1778433125 via family 'qwenvl' ...
+Loading custom/llava_1778433169 via family 'rsllava' ...
+Loading custom/rsllava-8000_1778439169 via family 'rsllava' ...
+INFO:     127.0.0.1:37248 - "GET / HTTP/1.1" 304 Not Modified
+INFO:     127.0.0.1:37248 - "GET /style.css HTTP/1.1" 200 OK
+INFO:     127.0.0.1:37258 - "GET /main.js HTTP/1.1" 304 Not Modified
+INFO:     127.0.0.1:37264 - "GET /api/families HTTP/1.1" 200 OK
+INFO:     127.0.0.1:37258 - "GET /api/models HTTP/1.1" 200 OK
+INFO:     127.0.0.1:37258 - "GET /api/models HTTP/1.1" 200 OK
+INFO:     127.0.0.1:37258 - "GET /api/models HTTP/1.1" 200 OK
+INFO:     127.0.0.1:41380 - "POST /api/compare HTTP/1.1" 200 OK
+Loading custom/qwen_1778433125 via family 'qwenvl' ...
+Loading custom/llava_1778433169 via family 'rsllava' ...
+Loading custom/rsllava-8000_1778439169 via family 'rsllava' ...
+INFO:     127.0.0.1:57592 - "GET / HTTP/1.1" 304 Not Modified
+INFO:     127.0.0.1:57592 - "GET /style.css HTTP/1.1" 200 OK
+INFO:     127.0.0.1:57606 - "GET /main.js HTTP/1.1" 304 Not Modified
+INFO:     127.0.0.1:57612 - "GET /api/families HTTP/1.1" 200 OK
+INFO:     127.0.0.1:57606 - "GET /api/models HTTP/1.1" 200 OK
+INFO:     127.0.0.1:57592 - "GET /api/models HTTP/1.1" 200 OK
+INFO:     127.0.0.1:57624 - "GET /api/models HTTP/1.1" 200 OK
+INFO:     127.0.0.1:38886 - "POST /api/compare HTTP/1.1" 200 OK
+Loading custom/qwen_1778433125 via family 'qwenvl' ...
+Loading custom/llava_1778433169 via family 'rsllava' ...
+Loading custom/rsllava-8000_1778439169 via family 'rsllava' ...
+INFO:     127.0.0.1:55446 - "GET /api/families HTTP/1.1" 200 OK
+INFO:     127.0.0.1:55444 - "GET /api/models HTTP/1.1" 200 OK
+INFO:     127.0.0.1:57730 - "POST /api/compare HTTP/1.1" 200 OK
+Loading custom/qwen_1778433125 via family 'qwenvl' ...
+Loading custom/llava_1778433169 via family 'rsllava' ...
+Loading custom/rsllava-8000_1778439169 via family 'rsllava' ...
+INFO:     127.0.0.1:33162 - "GET / HTTP/1.1" 200 OK
+INFO:     127.0.0.1:33162 - "GET /style.css HTTP/1.1" 200 OK
+INFO:     127.0.0.1:33164 - "GET /main.js HTTP/1.1" 200 OK
+INFO:     127.0.0.1:33178 - "GET /TR_VLM_Icon.png HTTP/1.1" 304 Not Modified
+INFO:     127.0.0.1:33164 - "GET /api/families HTTP/1.1" 200 OK
+INFO:     127.0.0.1:33178 - "GET /api/models HTTP/1.1" 200 OK
+INFO:     127.0.0.1:33162 - "GET /api/models HTTP/1.1" 200 OK
+INFO:     127.0.0.1:33164 - "GET /api/models HTTP/1.1" 200 OK
+INFO:     127.0.0.1:37320 - "POST /api/compare HTTP/1.1" 200 OK
+Loading custom/qwen_1778433125 via family 'qwenvl' ...
+Loading custom/llava_1778433169 via family 'rsllava' ...
+Loading custom/rsllava-8000_1778439169 via family 'rsllava' ...
+INFO:     127.0.0.1:39436 - "POST /api/compare HTTP/1.1" 200 OK
+Loading custom/qwen_1778433125 via family 'qwenvl' ...
+Loading custom/llava_1778433169 via family 'rsllava' ...
+Loading custom/rsllava-8000_1778439169 via family 'rsllava' ...
+INFO:     127.0.0.1:57168 - "POST /api/compare HTTP/1.1" 200 OK
