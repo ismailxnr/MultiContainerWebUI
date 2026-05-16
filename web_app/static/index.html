@@ -52,6 +52,8 @@
     <div class="orb orb-1"></div>
     <div class="orb orb-2"></div>
     <div class="orb orb-3"></div>
+    <div class="orb orb-4"></div>
+    <div class="orb orb-5"></div>
 </div>
 
 <!-- Landing Screen -->
@@ -95,6 +97,17 @@
                 <i class="fa-solid fa-comment-dots"></i> Sorgu
                 <span class="label-opt">isteğe bağlı</span>
             </div>
+            <select id="landing-prompt-select" class="landing-prompt-select">
+                <option value="">— Hazır soru seçin —</option>
+                <option>Bu görüntüde ne görüyorsunuz?</option>
+                <option>Bu görüntüdeki sahneyi betimleyin.</option>
+                <option>Bu görüntünün içeriğini tanımlayın.</option>
+                <option>Bu havadan çekilmiş görüntüyü açıklayın.</option>
+                <option>Bu uydu fotoğrafında ne var?</option>
+                <option>Bu uydu görüntüsünü tanımlayın.</option>
+                <option>Bu uzaktan algılama görüntüsünde neler var?</option>
+                <option>Bu uzaktan algılama görüntüsünü açıklayın.</option>
+            </select>
             <textarea id="landing-prompt" class="landing-textarea" placeholder="Görüntü hakkında soru sorun..." rows="2"></textarea>
         </div>
 
@@ -177,6 +190,17 @@
             <!-- Prompt -->
             <div class="form-group" style="margin-top:1.2rem">
                 <label>Sorgu <span class="label-opt">isteğe bağlı</span></label>
+                <select id="sidebar-prompt-select" class="form-input" style="margin-bottom:0.5rem">
+                    <option value="">— Hazır soru seçin —</option>
+                    <option>Bu görüntüde ne görüyorsunuz?</option>
+                    <option>Bu görüntüdeki sahneyi betimleyin.</option>
+                    <option>Bu görüntünün içeriğini tanımlayın.</option>
+                    <option>Bu havadan çekilmiş görüntüyü açıklayın.</option>
+                    <option>Bu uydu fotoğrafında ne var?</option>
+                    <option>Bu uydu görüntüsünü tanımlayın.</option>
+                    <option>Bu uzaktan algılama görüntüsünde neler var?</option>
+                    <option>Bu uzaktan algılama görüntüsünü açıklayın.</option>
+                </select>
                 <textarea id="prompt-input" placeholder="Görüntüyü açıklayın..." rows="2"></textarea>
             </div>
 

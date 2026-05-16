@@ -699,6 +699,14 @@ document.addEventListener('DOMContentLoaded', () => {
     const landingCompareBtn  = document.getElementById('landing-compare-btn');
     const appShell           = document.getElementById('app-shell');
 
+    // Preset question dropdowns
+    document.getElementById('landing-prompt-select').addEventListener('change', function () {
+        if (this.value) { landingPrompt.value = this.value; this.value = ''; }
+    });
+    document.getElementById('sidebar-prompt-select').addEventListener('change', function () {
+        if (this.value) { promptInput.value = this.value; this.value = ''; }
+    });
+
     function updateLandingCompareBtn() {
         landingCompareBtn.disabled = !(currentFile && selectedModels.size > 0);
     }
