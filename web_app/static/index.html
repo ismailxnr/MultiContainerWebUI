@@ -10,6 +10,12 @@
 </head>
 <body>
 
+<!-- Image Lightbox -->
+<div class="lightbox-overlay hidden" id="lightbox-overlay">
+    <button class="lightbox-close" id="lightbox-close" title="Kapat"><i class="fa-solid fa-xmark"></i></button>
+    <img class="lightbox-img" id="lightbox-img" alt="">
+</div>
+
 <!-- Edit Model Modal -->
 <div class="modal-overlay hidden" id="edit-modal-overlay">
     <div class="modal">
@@ -105,20 +111,15 @@
 <div class="app" id="app-shell">
 
     <!-- ── History Sidebar ── -->
-    <aside class="history-sidebar" id="history-sidebar">
+    <aside class="history-sidebar collapsed" id="history-sidebar">
         <div class="history-header">
-            <div class="history-logo">
-                <img class="logo-icon" src="TR_VLM_Icon.png" alt="TR-VLM">
-                <span class="history-app-name">TR-VLM</span>
-            </div>
-            <div class="history-header-actions">
-                <button class="icon-btn" id="history-new-btn" title="Yeni Karşılaştırma">
-                    <i class="fa-solid fa-pen-to-square"></i>
-                </button>
-                <button class="icon-btn" id="history-collapse-btn" title="Geçmişi Kapat">
-                    <i class="fa-solid fa-chevron-left"></i>
-                </button>
-            </div>
+            <button class="icon-btn" id="history-collapse-btn" title="Kapat">
+                <i class="fa-solid fa-bars"></i>
+            </button>
+            <span class="history-title">Geçmiş</span>
+            <button class="icon-btn" id="history-new-btn" title="Yeni Karşılaştırma">
+                <i class="fa-solid fa-pen-to-square"></i>
+            </button>
         </div>
 
         <div class="history-search-wrap">
@@ -146,7 +147,7 @@
     <aside class="sidebar">
         <div class="sidebar-header">
             <button class="icon-btn" id="history-expand-btn" title="Geçmişi Aç">
-                <i class="fa-solid fa-clock-rotate-left"></i>
+                <i class="fa-solid fa-bars"></i>
             </button>
             <div class="logo">
                 <img class="logo-icon" src="TR_VLM_Icon.png" alt="TR-VLM">

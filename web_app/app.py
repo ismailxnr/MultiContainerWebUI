@@ -49,38 +49,6 @@ BUILTIN_FAMILIES = {
         "requirements": [],
         "builtin": True,
     },
-    "pipeline": {
-        "name": "HF Pipeline (image-to-text)",
-        "description": "Standart HuggingFace image-to-text pipeline — BLIP, GIT, ViT-GPT2 vb.",
-        "endpoint_type": "generic",
-        "strategy": "pipeline",
-        "requirements": [],
-        "builtin": True,
-    },
-    "causal_lm": {
-        "name": "AutoModel (CausalLM + AutoProcessor)",
-        "description": "AutoModelForCausalLM + AutoProcessor ile çalışan modern VLM'ler",
-        "endpoint_type": "generic",
-        "strategy": "causal_lm",
-        "requirements": [],
-        "builtin": True,
-    },
-    "blip2": {
-        "name": "BLIP-2",
-        "description": "Salesforce BLIP-2 serisi modeller",
-        "endpoint_type": "generic",
-        "strategy": "blip2",
-        "requirements": [],
-        "builtin": True,
-    },
-    "internvl": {
-        "name": "InternVL / InternVL2",
-        "description": "InternVL2 serisi modeller — otomatik olarak timm ve einops kurulur",
-        "endpoint_type": "generic",
-        "strategy": "internvl",
-        "requirements": ["timm", "einops"],
-        "builtin": True,
-    },
 }
 
 

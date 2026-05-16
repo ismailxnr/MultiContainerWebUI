@@ -14,6 +14,19 @@ document.addEventListener('DOMContentLoaded', () => {
         }, duration);
     }
 
+    // ─── Avatar helpers ───
+    const AVATAR_COLORS = ['#2563eb','#16a34a','#d97706','#7c3aed','#db2777','#0891b2','#ea580c','#be123c'];
+    function getAvatarColor(name) {
+        let h = 0;
+        for (let i = 0; i < name.length; i++) h = (h * 31 + name.charCodeAt(i)) & 0xffffffff;
+        return AVATAR_COLORS[Math.abs(h) % AVATAR_COLORS.length];
+    }
+    function getAvatarInitials(name) {
+        const w = name.trim().split(/[\s\-_\/]+/).filter(Boolean);
+        if (w.length >= 2) return (w[0][0] + w[1][0]).toUpperCase();
+        return name.slice(0, 2).toUpperCase();
+    }
+
     // ─── Copy to clipboard ───
     function copyToClipboard(text, btn) {
         navigator.clipboard.writeText(text).then(() => {
@@ -387,10 +400,13 @@ document.addEventListener('DOMContentLoaded', () => {
         } catch (err) {
             resultCards.innerHTML += `
                 <div class="result-card error">
-                    <div class="result-card-header">
-                        <div class="result-model-name"><i class="fa-solid fa-triangle-exclamation" style="color:var(--red)"></i> Bağlantı Hatası</div>
+                    <div class="msg-row">
+                        <div class="msg-avatar" style="background:#dc2626"><i class="fa-solid fa-triangle-exclamation" style="font-size:0.9rem"></i></div>
+                        <div class="msg-content">
+                            <div class="msg-sender" style="color:#dc2626">Bağlantı Hatası</div>
+                            <div class="msg-bubble"><div class="result-caption">${err.message}</div></div>
+                        </div>
                     </div>
-                    <div class="result-body"><div class="result-caption">${err.message}</div></div>
                 </div>`;
         } finally {
             isComparing = false;
@@ -409,17 +425,19 @@ document.addEventListener('DOMContentLoaded', () => {
             card.className = 'result-card loading';
             card.id = `card-${data.index}`;
             card.style.animationDelay = `${data.index * 0.06}s`;
+            const loadColor = getAvatarColor(data.model_name);
+            const loadInit  = getAvatarInitials(data.model_name);
             card.innerHTML = `
-                <div class="result-card-header">
-                    <div class="result-model-name">
-                        <div class="model-status-dot loading"></div>
-                        ${data.model_name}
-                    </div>
-                </div>
-                <div class="result-body">
-                    <div class="typing-indicator">
-                        <div class="typing-dots"><span></span><span></span><span></span></div>
-                        <span class="typing-label">Model yükleniyor ve çıktı üretiliyor...</span>
+                <div class="msg-row">
+                    <div class="msg-avatar" style="background:${loadColor}">${loadInit}</div>
+                    <div class="msg-content">
+                        <div class="msg-sender" style="color:${loadColor}">${data.model_name}</div>
+                        <div class="msg-bubble">
+                            <div class="typing-indicator">
+                                <div class="typing-dots"><span></span><span></span><span></span></div>
+                                <span class="typing-label">Yükleniyor ve çıktı üretiliyor...</span>
+                            </div>
+                        </div>
                     </div>
                 </div>`;
             resultCards.appendChild(card);
@@ -435,27 +453,27 @@ document.addEventListener('DOMContentLoaded', () => {
             if (card) {
                 const wordCount = data.caption.trim().split(/\s+/).filter(Boolean).length;
                 card.className = 'result-card success';
+                const resColor = getAvatarColor(data.model_name);
+                const resInit  = getAvatarInitials(data.model_name);
                 card.innerHTML = `
-                    <div class="result-card-header">
-                        <div class="result-model-name">
-                            <div class="model-status-dot done"></div>
-                            ${data.model_name}
-                            <span class="model-badge">${data.model_key.split('/').pop()}</span>
-                        </div>
-                        <div class="result-meta-right">
-                            <span class="word-count-badge">${wordCount} kelime</span>
-                            <div class="result-times">
+                    <div class="msg-row">
+                        <div class="msg-avatar" style="background:${resColor}">${resInit}</div>
+                        <div class="msg-content">
+                            <div class="msg-sender" style="color:${resColor}">
+                                ${data.model_name}
+                                <span class="model-badge">${data.model_key.split('/').pop()}</span>
+                            </div>
+                            <div class="msg-bubble">
+                                <div class="result-caption"></div>
+                            </div>
+                            <div class="msg-meta">
                                 <span><i class="fa-solid fa-download"></i> ${data.load_time}s</span>
                                 <span><i class="fa-solid fa-bolt"></i> ${data.infer_time}s</span>
+                                <span class="word-count-badge">${wordCount} kelime</span>
+                                <button class="copy-btn" title="Metni kopyala">
+                                    <i class="fa-regular fa-copy"></i> Kopyala
+                                </button>
                             </div>
-                        </div>
-                    </div>
-                    <div class="result-body">
-                        <div class="result-caption"></div>
-                        <div class="result-actions">
-                            <button class="copy-btn" title="Metni kopyala">
-                                <i class="fa-regular fa-copy"></i> Kopyala
-                            </button>
                         </div>
                     </div>`;
                 typewriterReveal(card.querySelector('.result-caption'), data.caption);
@@ -469,14 +487,18 @@ document.addEventListener('DOMContentLoaded', () => {
             const card = document.getElementById(`card-${data.index}`);
             if (card) {
                 card.className = 'result-card error';
+                const errColor = getAvatarColor(data.model_name);
+                const errInit  = getAvatarInitials(data.model_name);
                 card.innerHTML = `
-                    <div class="result-card-header">
-                        <div class="result-model-name">
-                            <div class="model-status-dot error"></div>
-                            ${data.model_name}
+                    <div class="msg-row">
+                        <div class="msg-avatar" style="background:#dc2626">${errInit}</div>
+                        <div class="msg-content">
+                            <div class="msg-sender" style="color:${errColor}">${data.model_name}</div>
+                            <div class="msg-bubble">
+                                <div class="result-caption">${data.error}</div>
+                            </div>
                         </div>
-                    </div>
-                    <div class="result-body"><div class="result-caption">${data.error}</div></div>`;
+                    </div>`;
             }
             pendingResults.push({ type: 'error', index: data.index, model_key: data.model_key || '', model_name: data.model_name, error: data.error });
 
@@ -600,9 +622,34 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     });
 
+    // ─── Image Lightbox ───
+    const lightboxOverlay = document.getElementById('lightbox-overlay');
+    const lightboxImg     = document.getElementById('lightbox-img');
+
+    function openLightbox(src) {
+        lightboxImg.src = src;
+        lightboxOverlay.classList.remove('hidden');
+    }
+    function closeLightbox() {
+        lightboxOverlay.classList.add('hidden');
+        lightboxImg.src = '';
+    }
+
+    imagePreview.style.cursor = 'zoom-in';
+    imagePreview.addEventListener('click', e => {
+        e.stopPropagation();
+        if (imagePreview.src) openLightbox(imagePreview.src);
+    });
+
+    lightboxOverlay.addEventListener('click', closeLightbox);
+    document.getElementById('lightbox-close').addEventListener('click', e => {
+        e.stopPropagation();
+        closeLightbox();
+    });
+
     // ─── Keyboard shortcuts ───
     document.addEventListener('keydown', e => {
-        if (e.key === 'Escape') closeModal();
+        if (e.key === 'Escape') { closeLightbox(); closeModal(); }
         if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') {
             e.preventDefault();
             if (!compareBtn.disabled) compareBtn.click();
@@ -644,6 +691,8 @@ document.addEventListener('DOMContentLoaded', () => {
     const landingInput       = document.getElementById('landing-file-input');
     const landingUploadInner = document.getElementById('landing-upload-inner');
     const landingPreview     = document.getElementById('landing-preview');
+    landingPreview.style.cursor = 'zoom-in';
+    landingPreview.addEventListener('click', e => { e.stopPropagation(); if (landingPreview.src) openLightbox(landingPreview.src); });
     const landingRemoveImg   = document.getElementById('landing-remove-img');
     const landingChips       = document.getElementById('landing-model-chips');
     const landingPrompt      = document.getElementById('landing-prompt');
@@ -832,37 +881,40 @@ document.addEventListener('DOMContentLoaded', () => {
     function buildResultCard(result, index) {
         const card = document.createElement('div');
         card.style.animationDelay = `${index * 0.05}s`;
+        const color = getAvatarColor(result.model_name || '?');
+        const init  = getAvatarInitials(result.model_name || '?');
         if (result.type === 'error') {
             card.className = 'result-card error';
             card.innerHTML = `
-                <div class="result-card-header">
-                    <div class="result-model-name"><div class="model-status-dot error"></div>${result.model_name}</div>
-                </div>
-                <div class="result-body"><div class="result-caption">${result.error}</div></div>`;
+                <div class="msg-row">
+                    <div class="msg-avatar" style="background:#dc2626">${init}</div>
+                    <div class="msg-content">
+                        <div class="msg-sender" style="color:${color}">${result.model_name}</div>
+                        <div class="msg-bubble"><div class="result-caption">${result.error}</div></div>
+                    </div>
+                </div>`;
         } else {
             const wordCount = (result.caption || '').trim().split(/\s+/).filter(Boolean).length;
             card.className = 'result-card success';
             card.innerHTML = `
-                <div class="result-card-header">
-                    <div class="result-model-name">
-                        <div class="model-status-dot done"></div>
-                        ${result.model_name}
-                        <span class="model-badge">${(result.model_key || '').split('/').pop()}</span>
-                    </div>
-                    <div class="result-meta-right">
-                        <span class="word-count-badge">${wordCount} kelime</span>
-                        <div class="result-times">
+                <div class="msg-row">
+                    <div class="msg-avatar" style="background:${color}">${init}</div>
+                    <div class="msg-content">
+                        <div class="msg-sender" style="color:${color}">
+                            ${result.model_name}
+                            <span class="model-badge">${(result.model_key || '').split('/').pop()}</span>
+                        </div>
+                        <div class="msg-bubble">
+                            <div class="result-caption">${result.caption}</div>
+                        </div>
+                        <div class="msg-meta">
                             <span><i class="fa-solid fa-download"></i> ${result.load_time}s</span>
                             <span><i class="fa-solid fa-bolt"></i> ${result.infer_time}s</span>
+                            <span class="word-count-badge">${wordCount} kelime</span>
+                            <button class="copy-btn" title="Metni kopyala">
+                                <i class="fa-regular fa-copy"></i> Kopyala
+                            </button>
                         </div>
-                    </div>
-                </div>
-                <div class="result-body">
-                    <div class="result-caption">${result.caption}</div>
-                    <div class="result-actions">
-                        <button class="copy-btn" title="Metni kopyala">
-                            <i class="fa-regular fa-copy"></i> Kopyala
-                        </button>
                     </div>
                 </div>`;
             card.querySelector('.copy-btn').addEventListener('click', function () {
